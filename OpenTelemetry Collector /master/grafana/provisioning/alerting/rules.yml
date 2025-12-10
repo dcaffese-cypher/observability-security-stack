@@ -1,0 +1,1042 @@
+apiVersion: 1
+groups:
+    - orgId: 1
+      name: 1m
+      folder: Network Alerts
+      interval: 1m
+      rules:
+        - uid: aew20ifna6whsd
+          title: Interfaces went down within 5 minutes
+          condition: C
+          data:
+            - refId: B
+              relativeTimeRange:
+                from: 900
+                to: 0
+              datasourceUid: prometheus
+              model:
+                adhocFilters: []
+                datasource:
+                    type: prometheus
+                    uid: prometheus
+                editorMode: code
+                exemplar: false
+                expr: "(nvswitch_interface_oper_state{instance=~\".*\"} == 2\r\n  or nvswitch_interface_oper_state{instance=~\".*\"} == 8)\r\nand on(instance, interface)\r\n  (changes(nvswitch_interface_oper_state{instance=~\".*\"}[5m]) > 0)\r\n"
+                instant: false
+                interval: ""
+                intervalMs: 60000
+                legendFormat: '{{instance}} {{interface}}'
+                maxDataPoints: 43200
+                range: true
+                refId: B
+            - refId: A
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params: []
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                            - A
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                datasource:
+                    type: __expr__
+                    uid: __expr__
+                expression: B
+                intervalMs: 1000
+                maxDataPoints: 43200
+                reducer: last
+                refId: A
+                type: reduce
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 0
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                            - C
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                datasource:
+                    type: __expr__
+                    uid: __expr__
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: C
+                type: threshold
+          dashboardUid: 4bce95bd-8428-416d-afdd-013deab4cd28
+          panelId: 5
+          noDataState: NoData
+          execErrState: Error
+          for: 1m
+          annotations:
+            __dashboardUid__: 4bce95bd-8428-416d-afdd-013deab4cd28
+            __panelId__: "5"
+            summary: interface issue (instance={{ $labels.instance }}, interface={{ $labels.interface }})
+          labels:
+            severity: critical
+          isPaused: false
+          notification_settings:
+            receiver: grafana-default-email
+        - uid: eew1wfes15vk0d
+          title: bond is down
+          condition: C
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 900
+                to: 0
+              datasourceUid: prometheus
+              model:
+                datasource:
+                    type: prometheus
+                    uid: prometheus
+                editorMode: code
+                expr: "nvswitch_interface_info{operstate=\"down\", instance=~\"$instance\"} == 1\r\n"
+                instant: true
+                intervalMs: 1000
+                legendFormat: __auto
+                maxDataPoints: 43200
+                range: false
+                refId: A
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 1
+                        type: eq
+                      operator:
+                        type: and
+                      query:
+                        params:
+                            - C
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                datasource:
+                    type: __expr__
+                    uid: __expr__
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: C
+                type: threshold
+          dashboardUid: 4bce95bd-8428-416d-afdd-013deab4cd28
+          panelId: 29
+          noDataState: NoData
+          execErrState: Error
+          for: 1m
+          annotations:
+            __dashboardUid__: 4bce95bd-8428-416d-afdd-013deab4cd28
+            __panelId__: "29"
+            description: Bond '{{ $labels.ifalias }}' (interface '{{ $labels.interface }}') on '{{ $labels.instance }}' is DOWN
+            summary: Bond '{{ $labels.ifalias }}' is DOWN
+          labels:
+            severity: critical
+          isPaused: false
+          notification_settings:
+            receiver: grafana-default-email
+        - uid: bew278blq5gcgc
+          title: Flaps
+          condition: C
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 43200
+                to: 0
+              datasourceUid: prometheus
+              model:
+                adhocFilters: []
+                datasource:
+                    type: prometheus
+                    uid: prometheus
+                editorMode: code
+                expr: "nvswitch_interface_oper_state{instance=~\".*\"} == 2\r\nand on(instance, interface)\r\n    (changes(nvswitch_interface_oper_state{instance=~\".*\"}[5m]) > 2)"
+                instant: true
+                interval: ""
+                intervalMs: 60000
+                legendFormat: '{{instance}} {{interface}}'
+                maxDataPoints: 43200
+                range: false
+                refId: A
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 0
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                            - C
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                datasource:
+                    type: __expr__
+                    uid: __expr__
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: C
+                type: threshold
+          dashboardUid: 4bce95bd-8428-416d-afdd-013deab4cd28
+          panelId: 6
+          noDataState: NoData
+          execErrState: Error
+          for: 1m
+          annotations:
+            __dashboardUid__: 4bce95bd-8428-416d-afdd-013deab4cd28
+            __panelId__: "6"
+            description: |-
+                The operational state of interface {{ $labels.interface }} on switch {{ $labels.instance }} is DOWN.
+                    The interface has changed state more than twice in the last 5 minutes, indicating flapping.
+            summary: Interface {{ $labels.interface }} on {{ $labels.instance }} is down
+          labels:
+            severity: warning
+          isPaused: false
+          notification_settings:
+            receiver: grafana-default-email
+        - uid: aew27tv9w1tkwc
+          title: Proto and carrier down
+          condition: D
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 43200
+                to: 0
+              datasourceUid: prometheus
+              model:
+                adhocFilters: []
+                datasource:
+                    type: prometheus
+                    uid: prometheus
+                editorMode: code
+                exemplar: false
+                expr: "increase(nvswitch_interface_proto_down_total{instance=~\".*\"}[5m]) > 0\r\n"
+                format: time_series
+                instant: false
+                interval: ""
+                intervalMs: 60000
+                legendFormat: protodown {{instance}} {{interface}}
+                maxDataPoints: 43200
+                range: true
+                refId: A
+            - refId: B
+              relativeTimeRange:
+                from: 43200
+                to: 0
+              datasourceUid: prometheus
+              model:
+                adhocFilters: []
+                datasource:
+                    type: prometheus
+                    uid: prometheus
+                editorMode: code
+                exemplar: false
+                expr: "increase(nvswitch_interface_carrier_down_changes_total{instance=~\".*\"}[5m]) > 0\r\n"
+                format: time_series
+                instant: false
+                interval: ""
+                intervalMs: 60000
+                legendFormat: carrierdown {{instance}} {{interface}}
+                maxDataPoints: 43200
+                range: true
+                refId: B
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params: []
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                            - C
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                datasource:
+                    type: __expr__
+                    uid: __expr__
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                reducer: last
+                refId: C
+                type: reduce
+            - refId: D
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 0
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                            - D
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                datasource:
+                    type: __expr__
+                    uid: __expr__
+                expression: C
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: D
+                type: threshold
+          dashboardUid: 4bce95bd-8428-416d-afdd-013deab4cd28
+          panelId: 11
+          noDataState: NoData
+          execErrState: Error
+          for: 1m
+          annotations:
+            __dashboardUid__: 4bce95bd-8428-416d-afdd-013deab4cd28
+            __panelId__: "11"
+            description: |-
+                The interface {{ $labels.interface }} on switch {{ $labels.instance }} experienced a carrier down event
+                    within the last 5 minutes. This indicates a potential link issue or flapping.
+            summary: Interface carrier went down on {{ $labels.interface }} ({{ $labels.instance }})
+          labels:
+            severity: warning
+          isPaused: false
+          notification_settings:
+            receiver: grafana-default-email
+        - uid: bew28dfk1f3eoe
+          title: Interfaces with FCS, PHY, and CRC_Align Errors
+          condition: E
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 43200
+                to: 0
+              datasourceUid: prometheus
+              model:
+                adhocFilters: []
+                datasource:
+                    type: prometheus
+                    uid: prometheus
+                editorMode: code
+                expr: "increase(nvswitch_interface_dot3_stats_fcs_errors[5m])  > 0\r\n"
+                format: time_series
+                instant: true
+                interval: ""
+                intervalMs: 60000
+                legendFormat: 'fcs: {{instance}} {{interface}}'
+                maxDataPoints: 43200
+                range: false
+                refId: A
+            - refId: B
+              relativeTimeRange:
+                from: 43200
+                to: 0
+              datasourceUid: prometheus
+              model:
+                adhocFilters: []
+                datasource:
+                    type: prometheus
+                    uid: prometheus
+                editorMode: code
+                expr: increase(nvswitch_interface_phy_stats_phy_effective_errors[5m]) > 0
+                instant: false
+                interval: ""
+                intervalMs: 60000
+                legendFormat: 'phy: {{instance}} {{interface}}'
+                maxDataPoints: 43200
+                range: true
+                refId: B
+            - refId: D
+              relativeTimeRange:
+                from: 43200
+                to: 0
+              datasourceUid: prometheus
+              model:
+                adhocFilters: []
+                datasource:
+                    type: prometheus
+                    uid: prometheus
+                editorMode: code
+                expr: increase(nvswitch_interface_ether_stats_crc_align_errors[5]) > 0
+                instant: false
+                interval: ""
+                intervalMs: 60000
+                legendFormat: 'crc: {{instance}} {{interface}}'
+                maxDataPoints: 43200
+                range: true
+                refId: D
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params: []
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                            - C
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                datasource:
+                    type: __expr__
+                    uid: __expr__
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                reducer: last
+                refId: C
+                type: reduce
+            - refId: E
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 0
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                            - E
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                datasource:
+                    type: __expr__
+                    uid: __expr__
+                expression: C
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: E
+                type: threshold
+          dashboardUid: 4bce95bd-8428-416d-afdd-013deab4cd28
+          panelId: 1
+          noDataState: NoData
+          execErrState: Error
+          for: 1m
+          annotations:
+            __dashboardUid__: 4bce95bd-8428-416d-afdd-013deab4cd28
+            __panelId__: "1"
+            summary: errors detected on {{ $labels.interface }} ({{ $labels.instance }})
+          labels:
+            severity: warning
+          isPaused: false
+          notification_settings:
+            receiver: grafana-default-email
+        - uid: few2ab9qh80zkd
+          title: 'txwait, drops and buffer '
+          condition: H
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 43200
+                to: 0
+              datasourceUid: prometheus
+              model:
+                adhocFilters: []
+                datasource:
+                    type: prometheus
+                    uid: prometheus
+                editorMode: code
+                expr: rate(nvswitch_interface_ether_stats_jabbers{instance=~".*"}[5m]) > 0
+                instant: true
+                interval: ""
+                intervalMs: 60000
+                legendFormat: 'jabbers: {{instance}} {{interface}}'
+                maxDataPoints: 43200
+                range: false
+                refId: A
+            - refId: B
+              relativeTimeRange:
+                from: 43200
+                to: 0
+              datasourceUid: prometheus
+              model:
+                adhocFilters: []
+                datasource:
+                    type: prometheus
+                    uid: prometheus
+                editorMode: code
+                expr: rate(nvswitch_interface_tx_int_cksm_err[5m]) > 0
+                instant: false
+                interval: ""
+                intervalMs: 60000
+                legendFormat: 'tx_cksm_err: {{instance}} {{interface}}'
+                maxDataPoints: 43200
+                range: true
+                refId: B
+            - refId: C
+              relativeTimeRange:
+                from: 43200
+                to: 0
+              datasourceUid: prometheus
+              model:
+                adhocFilters: []
+                datasource:
+                    type: prometheus
+                    uid: prometheus
+                editorMode: code
+                expr: rate(nvswitch_interface_rx_buffer_full[5m]) > 0
+                instant: false
+                interval: ""
+                intervalMs: 60000
+                legendFormat: 'rx_buf_full: {{instance}} {{interface}}'
+                maxDataPoints: 43200
+                range: true
+                refId: C
+            - refId: D
+              relativeTimeRange:
+                from: 43200
+                to: 0
+              datasourceUid: prometheus
+              model:
+                adhocFilters: []
+                datasource:
+                    type: prometheus
+                    uid: prometheus
+                editorMode: code
+                expr: increase(nvswitch_interface_ether_stats_drop_events[1m]) > 0
+                instant: false
+                interval: ""
+                intervalMs: 60000
+                legendFormat: 'ether_stats_drop: {{instance}} {{interface}}'
+                maxDataPoints: 43200
+                range: true
+                refId: D
+            - refId: E
+              relativeTimeRange:
+                from: 43200
+                to: 0
+              datasourceUid: prometheus
+              model:
+                adhocFilters: []
+                datasource:
+                    type: prometheus
+                    uid: prometheus
+                editorMode: code
+                expr: increase(nvswitch_interface_no_buffer_discard_mc[1m]) > 0
+                instant: false
+                interval: ""
+                intervalMs: 60000
+                legendFormat: 'no_buffer_discard_mc: {{instance}} {{interface}}'
+                maxDataPoints: 43200
+                range: true
+                refId: E
+            - refId: F
+              relativeTimeRange:
+                from: 43200
+                to: 0
+              datasourceUid: prometheus
+              model:
+                adhocFilters: []
+                datasource:
+                    type: prometheus
+                    uid: prometheus
+                editorMode: code
+                expr: increase(nvswitch_interface_tx_wait[1m]) > 0
+                instant: false
+                interval: ""
+                intervalMs: 60000
+                legendFormat: tx_wait {{instance}} {{interface}}
+                maxDataPoints: 43200
+                range: true
+                refId: F
+            - refId: G
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params: []
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                            - G
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                datasource:
+                    type: __expr__
+                    uid: __expr__
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                reducer: last
+                refId: G
+                type: reduce
+            - refId: H
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 0
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                            - H
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                datasource:
+                    type: __expr__
+                    uid: __expr__
+                expression: G
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: H
+                type: threshold
+          dashboardUid: 4bce95bd-8428-416d-afdd-013deab4cd28
+          panelId: 13
+          noDataState: NoData
+          execErrState: Error
+          for: 1m
+          annotations:
+            __dashboardUid__: 4bce95bd-8428-416d-afdd-013deab4cd28
+            __panelId__: "13"
+            summary: txwait, drops and buffer events on {{ $labels.interface }} ({{ $labels.instance }})
+          labels:
+            severity: warning
+          isPaused: false
+          notification_settings:
+            receiver: grafana-default-email
+        - uid: few2ajwd9nda8f
+          title: outgoing packets/frames errors
+          condition: C
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 43200
+                to: 0
+              datasourceUid: prometheus
+              model:
+                adhocFilters: []
+                datasource:
+                    type: prometheus
+                    uid: prometheus
+                editorMode: code
+                expr: rate(nvswitch_interface_if_out_errors{instance=~".*"}[5m]) > 0
+                instant: true
+                interval: ""
+                intervalMs: 60000
+                legendFormat: '{{instance}} {{interface}}'
+                maxDataPoints: 43200
+                range: false
+                refId: A
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 0
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                            - C
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                datasource:
+                    type: __expr__
+                    uid: __expr__
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: C
+                type: threshold
+          dashboardUid: 4bce95bd-8428-416d-afdd-013deab4cd28
+          panelId: 10
+          noDataState: NoData
+          execErrState: Error
+          for: 1m
+          annotations:
+            __dashboardUid__: 4bce95bd-8428-416d-afdd-013deab4cd28
+            __panelId__: "10"
+            description: |-
+                The interface {{ $labels.interface }} on switch {{ $labels.instance }} has experienced
+                        outgoing errors in the last 5 minutes, which may indicate transmit issues or congestion.
+            summary: Outgoing errors detected on {{ $labels.interface }} ({{ $labels.instance }})
+          labels:
+            severity: info
+          isPaused: false
+          notification_settings:
+            receiver: grafana-default-email
+        - uid: dew2g1qpfgxdsd
+          title: incoming packets/frames errors
+          condition: C
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 43200
+                to: 0
+              datasourceUid: prometheus
+              model:
+                adhocFilters: []
+                datasource:
+                    type: prometheus
+                    uid: prometheus
+                editorMode: code
+                expr: "increase(nvswitch_interface_if_in_errors{instance=~\".*\"}[1m]) > 0\r\n"
+                instant: true
+                interval: ""
+                intervalMs: 60000
+                legendFormat: '{{instance}} {{interface}}'
+                maxDataPoints: 43200
+                range: false
+                refId: A
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 0
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                            - C
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                datasource:
+                    type: __expr__
+                    uid: __expr__
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: C
+                type: threshold
+          dashboardUid: 4bce95bd-8428-416d-afdd-013deab4cd28
+          panelId: 4
+          noDataState: NoData
+          execErrState: Error
+          for: 1m
+          annotations:
+            __dashboardUid__: 4bce95bd-8428-416d-afdd-013deab4cd28
+            __panelId__: "4"
+            summary: incoming errors detected on {{ $labels.interface }} ({{ $labels.instance }})
+          labels:
+            severity: warning
+          isPaused: false
+          notification_settings:
+            receiver: grafana-default-email
+        - uid: eew2g4z671blsb
+          title: symbol errors
+          condition: C
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 43200
+                to: 0
+              datasourceUid: prometheus
+              model:
+                adhocFilters: []
+                datasource:
+                    type: prometheus
+                    uid: prometheus
+                editorMode: code
+                expr: nvswitch_interface_dot3_stats_symbol_errors{instance=~".*"} > 0
+                instant: true
+                interval: ""
+                intervalMs: 60000
+                legendFormat: '{{instance}} {{interface}}'
+                maxDataPoints: 43200
+                range: false
+                refId: A
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 0
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                            - C
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                datasource:
+                    type: __expr__
+                    uid: __expr__
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: C
+                type: threshold
+          dashboardUid: 4bce95bd-8428-416d-afdd-013deab4cd28
+          panelId: 12
+          noDataState: NoData
+          execErrState: Error
+          for: 1m
+          annotations:
+            __dashboardUid__: 4bce95bd-8428-416d-afdd-013deab4cd28
+            __panelId__: "12"
+            summary: symbol errors detected on {{ $labels.interface }} ({{ $labels.instance }})
+          labels:
+            severity: warning
+          isPaused: false
+          notification_settings:
+            receiver: grafana-default-email
+        - uid: dew2gp2hc270gf
+          title: outgoing discards
+          condition: C
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 43200
+                to: 0
+              datasourceUid: prometheus
+              model:
+                adhocFilters: []
+                datasource:
+                    type: prometheus
+                    uid: prometheus
+                editorMode: code
+                expr: ' increase(nvswitch_interface_if_out_discards{instance=~".*"}[1m]) > 0'
+                instant: true
+                interval: ""
+                intervalMs: 60000
+                legendFormat: '{{instance}} {{interface}}'
+                maxDataPoints: 43200
+                range: false
+                refId: A
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 0
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                            - C
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                datasource:
+                    type: __expr__
+                    uid: __expr__
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: C
+                type: threshold
+          dashboardUid: 4bce95bd-8428-416d-afdd-013deab4cd28
+          panelId: 3
+          noDataState: NoData
+          execErrState: Error
+          for: 1m
+          annotations:
+            __dashboardUid__: 4bce95bd-8428-416d-afdd-013deab4cd28
+            __panelId__: "3"
+            summary: Outgoing discards detected on {{ $labels.interface }} ({{ $labels.instance }})
+          labels:
+            severity: info
+          isPaused: false
+          notification_settings:
+            receiver: grafana-default-email
+        - uid: dew2gv9d1wge8a
+          title: Packet discards due to loopback detection
+          condition: C
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 43200
+                to: 0
+              datasourceUid: prometheus
+              model:
+                adhocFilters: []
+                datasource:
+                    type: prometheus
+                    uid: prometheus
+                editorMode: code
+                expr: increase(nvswitch_interface_discards_loopback_filter{instance=~".*"}[5m]) > 0
+                instant: true
+                interval: ""
+                intervalMs: 60000
+                legendFormat: '{{instance}} {{interface}}'
+                maxDataPoints: 43200
+                range: false
+                refId: A
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 0
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                            - C
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                datasource:
+                    type: __expr__
+                    uid: __expr__
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: C
+                type: threshold
+          dashboardUid: 4bce95bd-8428-416d-afdd-013deab4cd28
+          panelId: 7
+          noDataState: NoData
+          execErrState: Error
+          for: 1m
+          annotations:
+            __dashboardUid__: 4bce95bd-8428-416d-afdd-013deab4cd28
+            __panelId__: "7"
+            summary: loopback detection on {{ $labels.interface }} ({{ $labels.instance }})
+          labels:
+            severity: warning
+          isPaused: false
+          notification_settings:
+            receiver: grafana-default-email
+        - uid: few2h4mnbbq4ga
+          title: Discards Egress STP filter
+          condition: C
+          data:
+            - refId: B
+              relativeTimeRange:
+                from: 43200
+                to: 0
+              datasourceUid: prometheus
+              model:
+                adhocFilters: []
+                datasource:
+                    type: prometheus
+                    uid: prometheus
+                editorMode: code
+                expr: rate(nvswitch_interface_discards_egress_stp_filter{instance=~".*"}[5m]) > 0
+                instant: false
+                interval: ""
+                intervalMs: 60000
+                legendFormat: '{{instance}} {{interface}}'
+                maxDataPoints: 43200
+                range: true
+                refId: B
+            - refId: A
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params: []
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                            - A
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                datasource:
+                    type: __expr__
+                    uid: __expr__
+                expression: B
+                intervalMs: 1000
+                maxDataPoints: 43200
+                reducer: last
+                refId: A
+                type: reduce
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 0
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                            - C
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                datasource:
+                    type: __expr__
+                    uid: __expr__
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: C
+                type: threshold
+          dashboardUid: 4bce95bd-8428-416d-afdd-013deab4cd28
+          panelId: 8
+          noDataState: NoData
+          execErrState: Error
+          for: 1m
+          annotations:
+            __dashboardUid__: 4bce95bd-8428-416d-afdd-013deab4cd28
+            __panelId__: "8"
+            summary: Discards Egress STP filter {{ $labels.interface }} ({{ $labels.instance }})
+          labels:
+            severity: warning
+          isPaused: false
+          notification_settings:
+            receiver: grafana-default-email

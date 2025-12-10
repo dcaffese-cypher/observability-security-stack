@@ -1,0 +1,113 @@
+- name: Deploy OpenTelemetry Collector Agent
+  hosts: agents
+  become: true
+  vars:
+    otel_config_path: /etc/otelcol/otelcol-agent.yml
+    otel_service_name: otelcol
+  tasks:
+    - name: Check if Docker is installed
+      command: docker --version
+      register: docker_check
+      failed_when: false
+      changed_when: false
+
+    - name: Set Docker installation fact
+      set_fact:
+        docker_installed: "{{ docker_check.rc == 0 }}"
+        otel_root_path: "/"
+
+    - name: Display Docker status
+      debug:
+        msg: "Docker is {{ 'installed' if docker_installed else 'not installed' }}"
+
+    - name: Create config directory
+      file:
+        path: /etc/otelcol
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Install binary
+      shell: |
+        set -euo pipefail
+        if ! [ -x /opt/otelcol/otelcol-contrib ]; then
+          mkdir -p /opt/otelcol
+          curl -fsSL -o /opt/otelcol/otelcol-contrib.tar.gz \
+            https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v{{ otelcol_version }}/otelcol-contrib_{{ otelcol_version }}_linux_amd64.tar.gz
+          tar -xzf /opt/otelcol/otelcol-contrib.tar.gz -C /opt/otelcol
+          rm -f /opt/otelcol/otelcol-contrib.tar.gz
+        fi
+      args:
+        executable: /bin/bash
+
+    - name: Create systemd unit file
+      copy:
+        dest: /etc/systemd/system/{{ otel_service_name }}.service
+        mode: '0644'
+        content: |
+          [Unit]
+          Description=OpenTelemetry Collector (Agent)
+          After=network-online.target
+          Wants=network-online.target
+          {% if docker_installed %}After=docker.service
+          Wants=docker.service{% endif %}
+
+          [Service]
+          ExecStart=/opt/otelcol/otelcol-contrib --config {{ otel_config_path }}
+          Restart=always
+          RestartSec=5
+          User=root
+          LimitNOFILE=65536
+          {% if docker_installed %}
+          # Docker socket access for container monitoring
+          SupplementaryGroups=docker
+          {% endif %}
+
+          [Install]
+          WantedBy=multi-user.target
+      register: unitfile
+
+    - name: Reload systemd if unit changed
+      systemd:
+        daemon_reload: true
+      when: unitfile is changed
+
+    - name: Template agent configuration
+      template:
+        src: template/otelcol-agent.yml.j2
+        dest: "{{ otel_config_path }}"
+        owner: root
+        group: root
+        mode: '0644'
+      notify: Restart otelcol
+
+    - name: Copy enable_realtime_history.sh script
+      copy:
+        src: enable_realtime_history.sh
+        dest: /usr/local/bin/enable_realtime_history.sh
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Execute enable_realtime_history.sh script
+      shell: /usr/local/bin/enable_realtime_history.sh
+      register: history_script_result
+      changed_when: history_script_result.stdout != ""
+
+    - name: Display script execution result
+      debug:
+        msg: "{{ history_script_result.stdout_lines }}"
+      when: history_script_result.stdout_lines is defined
+
+    - name: Enable and start service
+      systemd:
+        name: "{{ otel_service_name }}"
+        state: started
+        enabled: true
+
+  handlers:
+    - name: Restart otelcol
+      systemd:
+        name: "{{ otel_service_name }}"
+        state: restarted

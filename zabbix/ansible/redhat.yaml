@@ -1,0 +1,66 @@
+- name: Check if Zabbix is present
+  stat:
+    path: /etc/zabbix/zabbix_agentd.conf
+  register: zabbix_status
+
+- name: Add Zabbix repository for Rocky Linux 8
+  yum_repository:
+     name: zabbix
+     description: Zabbix Official Repository
+     baseurl: http://repo.zabbix.com/zabbix/6.4/rhel/8/x86_64/
+     gpgcheck: no
+     gpgkey: http://repo.zabbix.com/RPM-GPG-KEY-ZABBIX
+     enabled: yes
+  when: not zabbix_status.stat.exists
+
+- name: Install Zabbix agent
+  yum:
+    name: zabbix-agent
+    state: present
+    update_cache: yes
+  when: not zabbix_status.stat.exists
+
+- name: Configure zabbix_agentd.conf
+  template:
+    src: config/zabbix_agentd.conf_redhat.j2
+    dest: /etc/zabbix/zabbix_agentd.conf
+  when: not zabbix_status.stat.exists
+
+- name: Ensure Zabbix agent is active and enabled
+  service:
+    name: zabbix-agent
+    state: started
+    enabled: yes
+  when: not zabbix_status.stat.exists
+
+- name: Register host in Zabbix
+  become: false
+  vars:
+    ansible_connection: httpapi
+  # Replace ZABBIX_SERVER_IP with your Zabbix server IP or hostname
+  delegate_to: ZABBIX_SERVER_IP
+  community.zabbix.zabbix_host:
+    host_name: "{{ ansible_name }}"
+    visible_name: "{{ ansible_name }}"
+    host_groups:
+          - Virtual machines
+          - '{{ zabbix_host_group }}'
+    link_templates:
+      - '{{ zabbix_template }}'
+    status: enabled
+    state: present
+    interfaces:
+      - type: "1"
+        main: "1"
+        useip: "1"
+        ip: "{{ inventory_hostname }}"
+        dns: ""
+        port: "10050"
+          #  when: not zabbix_status.stat.exists
+
+- name: restart zabbix-agent
+  service:
+        name: zabbix-agent
+        state: restarted
+        enabled: true
+          #  when: not zabbix_status.stat.exists

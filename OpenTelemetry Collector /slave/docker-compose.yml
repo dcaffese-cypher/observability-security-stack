@@ -1,0 +1,66 @@
+x-logging: &default-logging
+  driver: loki
+  options:
+    loki-url: "${LOKI_URL}/loki/api/v1/push"
+    loki-external-labels: "pais=${PAIS},entorno=${ENTORNO},cliente=${CLIENTE},service=${SERVICE_NAME}"
+    max-size: "25m"
+    max-file: "3"
+
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.131.0
+    container_name: otel_collector
+    restart: unless-stopped
+    user: "0:0"
+    uts: "host"
+    userns_mode: "host"      # access real socket and /proc
+    pid: "host"              # host metrics
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - apparmor:unconfined
+      - seccomp:unconfined
+    command: ["--config=/etc/otel/config.yaml"]
+    environment:
+      PAIS: ${PAIS}
+      ENTORNO: ${ENTORNO}
+      CLIENTE: ${CLIENTE}
+      SERVICE_NAME: ${SERVICE_NAME}            # service.name comes from host.name (resourcedetection)
+      MASTER_OTLP_HTTP: ${MASTER_OTLP_HTTP}
+      MASTER_OTLP_GRPC: ${MASTER_OTLP_GRPC}
+      OTEL_LOG_LEVEL: info
+    group_add:
+      - "${DOCKER_SOCK_GID}"           # numeric GID of Docker socket (in .env)
+    volumes:
+      - ./otelcol-agent.yaml:/etc/otel/config.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /:/hostfs:ro                   # for hostmetrics.root_path
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /etc/passwd:/etc/passwd:ro
+      - /etc/group:/etc/group:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC (if local apps want to send to agent)
+      - "4318:4318"   # OTLP HTTP
+      - "8888:8888"   # collector /metrics endpoint
+      - "9464:9464"
+    # IMPORTANT: collector logs in json-file to view with "docker logs"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  promtail:
+    image: grafana/promtail:3.5.1
+    container_name: agent_promtail
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - /var/log:/var/log:ro
+      - /home:/home_server:ro
+      - /root:/root_user:ro
+      - ./promtail.yml:/etc/promtail/promtail.yml:ro
+      - /var/lib/promtail:/var/lib/promtail
+    command: ["-config.file=/etc/promtail/promtail.yml", "-config.expand-env=true"]
+    logging: *default-logging

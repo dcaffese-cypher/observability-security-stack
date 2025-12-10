@@ -1,0 +1,27 @@
+apiVersion: 1
+
+templates:
+  - orgId: 1
+    name: custom_email_template
+    template: |
+      {{ define "custom_email.message" }}
+      {{ range .Alerts }}
+      {{ if eq .Status "firing" }}🔥 FIRING{{ else }}✅ RESOLVED{{ end }}: {{ .Labels.alertname }}
+      
+      Labels:
+      {{ range .Labels.SortedPairs }}
+      {{ if ne .Name "job" }}
+      - {{ .Name }}: {{ .Value }}
+      {{ end }}
+      {{ end }}
+      
+      {{ if .Annotations }}
+      Annotations:
+      {{ range .Annotations.SortedPairs }}
+      {{ if ne .Name "summary" }}
+      - {{ .Name }}: {{ .Value }}
+      {{ end }}
+      {{ end }}
+      {{ end }}
+      {{ end }}
+      {{ end }}

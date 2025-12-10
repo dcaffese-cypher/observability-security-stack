@@ -1,0 +1,41 @@
+---
+- name: Configure Remote Server
+  hosts: my_servers
+  become: true
+  vars:
+    # Replace ZABBIX_SERVER_IP with your Zabbix server IP or hostname
+    server_url: http://ZABBIX_SERVER_IP
+    # Replace with your Zabbix API token (generate in Zabbix UI: Administration > API tokens)
+    ansible_zabbix_auth_key: YOUR_ZABBIX_API_TOKEN
+    ansible_zabbix_url_path: ''
+    ansible_network_os: community.zabbix.zabbix
+    zabbix_server: http://ZABBIX_SERVER_IP
+    # Replace with your Zabbix API username
+    zabbix_api_user: YOUR_ZABBIX_API_USER
+    # Replace with your Zabbix API password or token
+    zabbix_api_pass: YOUR_ZABBIX_API_PASSWORD_OR_TOKEN
+    zabbix_host_group: Linux servers
+    zabbix_template: Linux by Zabbix agent
+#    ansible_user: ansible
+
+  tasks:
+    - name: Set API token
+      ansible.builtin.set_fact:
+        ansible_zabbix_auth_key: YOUR_ZABBIX_API_TOKEN
+
+    - name: Set credentials to access Zabbix Server API
+      ansible.builtin.set_fact:
+         ansible_user: YOUR_ZABBIX_API_USER
+         ansible_httpapi_pass: YOUR_ZABBIX_API_PASSWORD
+
+    - name: Redhat
+      vars:
+        ansible_user: root
+      include: redhat.yaml
+      when: ansible_os_family == "RedHat" or ansible_os_family == "Rocky"
+
+    - name: Ubuntu / Debian
+      vars:
+        ansible_user: ubuntu
+      include: ubuntu.yaml
+      when: ansible_os_family == "Debian" or ansible_os_family == "Ubuntu"

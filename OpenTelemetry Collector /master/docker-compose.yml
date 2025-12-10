@@ -1,0 +1,110 @@
+volumes:
+  grafana-data:
+  prometheus-data:
+
+services:
+  loki:
+    image: grafana/loki:3.5.1
+    container_name: master_loki
+    restart: unless-stopped
+    user: "10001:10001"
+    volumes:
+      - ./loki-config.yml:/etc/loki/config.yml:ro
+      - ./loki-data:/loki
+    command: -config.file=/etc/loki/config.yml
+    ports:
+      - "3100:3100"
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    container_name: master_prometheus
+    restart: unless-stopped
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=7d"
+      - "--storage.tsdb.retention.size=25GB"
+      - "--web.enable-lifecycle"
+      - "--web.enable-otlp-receiver"
+#      - "--enable-feature=otlp-write-receiver"
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:12.1.0
+    container_name: master_grafana
+    restart: unless-stopped
+    environment:
+      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor
+      - GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=grafana-opentelemetry-datasource
+      - GF_METRICS_ENABLED=true
+      - GF_SERVER_ROOT_URL=https://YOUR_GRAFANA_DOMAIN_OR_IP/
+      - GF_SERVER_SERVE_FROM_SUB_PATH=false
+      # --- SMTP configuration ---
+      - GF_SMTP_ENABLED=true
+      - GF_SMTP_HOST=smtp.office365.com:587
+      - GF_SMTP_USER=your-email@example.com
+      - GF_SMTP_PASSWORD=your-smtp-app-password     # Replace with your SMTP app password
+      - GF_SMTP_SKIP_VERIFY=false
+      - GF_SMTP_FROM_ADDRESS=your-email@example.com
+      - GF_SMTP_FROM_NAME=Grafana Alerts
+      - GF_SMTP_STARTTLS_POLICY=OpportunisticStartTLS
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning/alerting:/etc/grafana/provisioning/alerting
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+    ports:
+      - "3000:3000"
+    depends_on:
+      loki:
+        condition: service_started
+      prometheus:
+        condition: service_started
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.131.0
+    container_name: master_otel_collector
+    restart: unless-stopped
+    volumes:
+      - ./otelcol-config.yaml:/etc/otel/otelcol-config.yaml:ro
+    command: --config=/etc/otel/otelcol-config.yaml
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "13133:13133"
+      - "8888:8888"
+    depends_on:
+      loki:
+        condition: service_started
+      prometheus:
+        condition: service_started
+
+  reverse_proxy:
+    image: nginx:alpine
+    container_name: master_reverse_proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /opt/reverse-proxy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro,Z
+      - /opt/reverse-proxy/certs:/etc/nginx/certs:ro,Z
+    depends_on:
+      grafana:
+        condition: service_started
+      prometheus:
+        condition: service_started
+      loki:
+        condition: service_started
+
+  snmp-exporter:
+    image: prom/snmp-exporter
+    container_name: master_snmp_exporter
+    restart: unless-stopped
+    ports:
+      - "9116:9116"
+    volumes:
+      - ./snmp/snmp.yml:/etc/snmp_exporter/snmp.yml:ro

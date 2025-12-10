@@ -1,0 +1,129 @@
+Create an alert script for vm100, the commands that should be executed have * in the description below, it should be able to perform a check of them and if any returns a different value that is a warning, that alert can be sent via zabbix_sender to the Zabbix or Grafana dashboard, tell me which would be better.
+
+*systemctl status firewalld
+"active (running)" if it says this the value is 0, if it says not active it is 1
+
+*systemctl status systemd-nspawn@data-access.service
+"active (running)" if it says this the value is 0, if it says not active it is 1
+
+*ip -br a | grep bond70 | grep -q "EXPECTED_IP" && echo OK || echo BAD
+"OK" if it says this the value is 0, if it says BAD 1
+
+*mmgetstate
+ Node number  Node name  GPFS state  
+-------------------------------------
+         34  HOSTNAME-ib   "active" if it says this the value is 0, if it doesn't say it is 1
+
+*ip route | grep default| head -n 1
+"default via DEFAULT_GATEWAY_IP dev INTERFACE_NAME proto static", if it says this the value is 0, if it doesn't say anything it is 1
+
+*curl -SsL --unix-socket /opt/data-access/shared/http_data_access.sock http:/data | jq -r .title
+"EXPECTED_SERVICE_TITLE" if it says this the value is 0, if it says BAD is 1
+
+*ip -br a 
+
+lo               UNKNOWN        127.0.0.1/8 ::1/128 
+ens18            UP             EXAMPLE_IP_1/24 fe80::38a2:85ff:febc:3677/64 
+ens20            UP             EXAMPLE_IP_2/24 fe80::1483:cfff:fe06:1286/64 
+ib0              UP             
+ib1              DOWN           
+bond70           UP             EXAMPLE_IP_3/16 fe80::222:3300:101:861/64 
+br0              DOWN 
+
+When ib0 or ib1 is NOT in the output WARNING the value is 1
+
+WHEN bond70 is not UP or does not have an IP address the value is 1
+
+
+The script must work to recognize a value > 0 since zabbix sender works as follows:
+
+zabbix_sender -z ZABBIX_SERVER_IP -s HOSTNAME -k ib.interfaces.status -o 1 (send alert)
+
+
+
+ZABBIX_SENDER
+zabbix_sender -z ZABBIX_SERVER_IP -s HOSTNAME -k ib.interfaces.status -o 10
+
+
+
+#!/bin/bash
+
+# Zabbix server address
+# Replace ZABBIX_SERVER_IP with your Zabbix server IP or hostname
+ZABBIX_SERVER="ZABBIX_SERVER_IP"
+# Host name in Zabbix
+# Replace HOSTNAME with your server hostname
+HOST="HOSTNAME"
+
+# Function to send data to Zabbix
+send_to_zabbix() {
+    key=$1
+    value=$2
+    zabbix_sender -z $ZABBIX_SERVER -s $HOST -k $key -o $value
+}
+
+# Check firewalld status
+firewalld_status=$(systemctl is-active firewalld)
+if [ "$firewalld_status" != "active" ]; then
+    send_to_zabbix "service.firewalld.status" 1
+else
+    send_to_zabbix "service.firewalld.status" 0
+fi
+
+# Check systemd-nspawn@data-access service status
+nspawn_status=$(systemctl is-active systemd-nspawn@data-access.service)
+if [ "$nspawn_status" != "active" ]; then
+    send_to_zabbix "service.nspawn.status" 1
+else
+    send_to_zabbix "service.nspawn.status" 0
+fi
+
+# Check bond70 IP
+# Replace EXPECTED_IP with your expected IP address
+if ! ip -br a | grep bond70 | grep -q "EXPECTED_IP"; then
+    send_to_zabbix "network.bond70.ip" 1
+else
+    send_to_zabbix "network.bond70.ip" 0
+fi
+
+# Check GPFS state on host
+# Replace HOSTNAME with your server hostname
+if ! mmgetstate | grep -q "HOSTNAME-ib.*active"; then
+    send_to_zabbix "gpfs.HOSTNAME.state" 1
+else
+    send_to_zabbix "gpfs.HOSTNAME.state" 0
+fi
+
+# Check default route
+# Replace DEFAULT_GATEWAY_IP and INTERFACE_NAME with your actual values
+if ! ip route | grep -q "default via DEFAULT_GATEWAY_IP dev INTERFACE_NAME proto static"; then
+    send_to_zabbix "network.default.route" 1
+else
+    send_to_zabbix "network.default.route" 0
+fi
+
+# Check Data Access Service
+# Replace EXPECTED_SERVICE_TITLE with your expected service title
+if [ "$(curl -SsL --unix-socket /opt/data-access/shared/http_data_access.sock http:/data | jq -r .title)" != "EXPECTED_SERVICE_TITLE" ]; then
+    send_to_zabbix "service.data_access.title" 1
+else
+    send_to_zabbix "service.data_access.title" 0
+fi
+
+# Check ib0 and ib1 interfaces
+if ! ip -br a | grep -qE 'ib0\s+UP|ib1\s+UP'; then
+    send_to_zabbix "ib.interfaces.status" 1
+else
+    send_to_zabbix "ib.interfaces.status" 0
+fi
+
+# Check bond70 status
+if ! ip -br a | grep -qE 'bond70\s+UP.*[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/'; then
+    send_to_zabbix "network.bond70.status" 1
+else
+    send_to_zabbix "network.bond70.status" 0
+fi
+
+echo "All checks have been performed and alerts sent if needed."
+
+

@@ -1,0 +1,75 @@
+    - name: Check if Service Exists Wazuh
+      stat:
+        path: /var/ossec/etc/ossec.conf
+      register: wazuh_status
+
+    # Task to download Wazuh Agent package using curl or wget
+    - name: Download Wazuh Agent package with curl (for RedHat)
+      command: "curl -o /tmp/wazuh-agent.rpm https://packages.wazuh.com/4.x/yum/wazuh-agent-4.7.0-1.x86_64.rpm"
+      when:
+        - ansible_os_family == "RedHat" or ansible_distribution == "Rocky"
+        - not wazuh_status.stat.exists
+
+    - name: Import Wazuh GPG key
+      rpm_key:
+        state: present
+        key: https://packages.wazuh.com/key/GPG-KEY-WAZUH
+      when:
+        - ansible_os_family == "RedHat" or ansible_distribution == "Rocky"
+        - not wazuh_status.stat.exists
+
+    # Tasks to install Wazuh Agent package
+    - name: Install RPM package without GPG signature verification
+      yum:
+        name: "/tmp/wazuh-agent.rpm"
+        state: present
+        disable_gpg_check: yes
+      when:
+        - not wazuh_status.stat.exists
+
+    # Tasks to configure and enable Wazuh Agent service
+    - name: Configure Wazuh Agent
+      shell: /var/ossec/bin/agent-auth -m WAZUH_MANAGER_IP -G Infrastructure # Change groups as needed
+      args:
+        executable: /bin/bash
+      when:
+        - not wazuh_status.stat.exists
+
+    # Verify if ossec.conf file exists
+    - name: Verify existence of /var/ossec/etc/ossec.conf
+      stat:
+        path: /var/ossec/etc/ossec.conf
+      register: ossec_conf
+      when: not wazuh_status.stat.exists
+
+    # Update Wazuh Manager IP address in ossec.conf
+    - name: Update Wazuh Manager IP address in ossec.conf
+      replace:
+        path: /var/ossec/etc/ossec.conf
+        regexp: '^\s*<address>MANAGER_IP</address>$'
+        replace: '<address>WAZUH_MANAGER_IP</address>'
+      when:
+        - not wazuh_status.stat.exists
+        - ossec_conf.stat.exists
+
+    - name: Restart wazuh-agent service
+      systemd:
+        name: wazuh-agent
+        state: restarted
+      when: not wazuh_status.stat.exists
+
+    - name: Enable and start Wazuh Agent service
+      systemd:
+        name: wazuh-agent
+        enabled: yes
+        state: started
+      when: not wazuh_status.stat.exists
+
+    # Post-installation cleanup tasks
+
+    - name: Remove downloaded file (RPM)
+      file:
+        path: "/tmp/wazuh-agent.rpm"
+        state: absent
+      when:
+        - not wazuh_status.stat.exists

@@ -1,0 +1,15 @@
+
+# On the server that runs the Zabbix playbook you must have installed:
+
+- pip install zabbix-api
+
+
+ansible-galaxy collection install ansible.posix
+ansible-galaxy collection install community.general
+ansible-galaxy collection install ansible.netcommon
+ansible-galaxy collection install community.zabbix
+
+# Execute in terminal:
+
+- ansible-playbook -i inventory.ini install-zabbix.yaml
+

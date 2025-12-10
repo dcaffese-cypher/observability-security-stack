@@ -1,0 +1,58 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /var/lib/promtail/positions.yaml
+
+clients:
+  - url: ${LOKI_URL}/loki/api/v1/push
+
+scrape_configs:
+  - job_name: varlogs
+    static_configs:
+      - targets: ['localhost']
+        labels:
+          job: varlogs
+          pais: ${PAIS}
+          entorno: ${ENTORNO}
+          cliente: ${CLIENTE}
+          hostname: ${SERVICE_NAME}
+          __path__: /var/log/*log
+    relabel_configs:
+      - target_label: service
+        replacement: ${SERVICE_NAME}
+      - target_label: hostname
+        replacement: ${SERVICE_NAME}
+
+  - job_name: history
+    static_configs:
+      - targets: ['localhost']
+        labels:
+          job: history
+          pais: ${PAIS}
+          entorno: ${ENTORNO}
+          cliente: ${CLIENTE}
+          hostname: ${SERVICE_NAME}
+          __path__: /home_server/*/.bash_history
+    relabel_configs:
+      - target_label: service
+        replacement: ${SERVICE_NAME}
+      - target_label: hostname
+        replacement: ${SERVICE_NAME}
+
+  - job_name: history_root
+    static_configs:
+      - targets: ['localhost']
+        labels:
+          job: history_root
+          pais: ${PAIS}
+          entorno: ${ENTORNO}
+          cliente: ${CLIENTE}
+          hostname: ${SERVICE_NAME}
+          __path__: /root_user/.bash_history
+    relabel_configs:
+      - target_label: service
+        replacement: ${SERVICE_NAME}
+      - target_label: hostname
+        replacement: ${SERVICE_NAME}

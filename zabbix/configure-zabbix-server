@@ -1,0 +1,36 @@
+# 
+ZABBIX SERVER CONFIGURATION FILE
+
+# Replace MYSQL_SERVER_HOST with your MySQL server hostname or IP
+ListenPort=10051                                                                                                                                            
+LogType=console                                                                                                                                               
+DebugLevel=3                                                                                                                                                  
+DBHost=MYSQL_SERVER_HOST                                                                                                                                           
+DBName=zabbix                                                                                                                                                 
+# Replace ZABBIX_DB_USER with your Zabbix database user
+DBUser=ZABBIX_DB_USER                                                                                                                                                 
+# Replace ZABBIX_DB_PASSWORD with your Zabbix database password
+DBPassword=ZABBIX_DB_PASSWORD                                                                                                                                             
+DBPort=3306                                                                                                                                                   
+# Replace ZABBIX_JAVA_GATEWAY_HOST with your Zabbix Java Gateway hostname or IP
+JavaGateway=ZABBIX_JAVA_GATEWAY_HOST                                                                                                                               
+StartJavaPollers=5                                                                                                                                            
+SNMPTrapperFile=/var/lib/zabbix/snmptraps/snmptraps.log                                                                                                       
+StartSNMPTrapper=1                                                                                                                                            
+# ListenIP=0.0.0.0                                                                                                                                            
+CacheSize=10G                                                                                                                                                 
+HistoryCacheSize=1G                                                                                                                                           
+HistoryIndexCacheSize=1G                                                                                                                                      
+TrendCacheSize=1G                                                                                                                                             
+ValueCacheSize=10G                                                                                                                                            
+AlertScriptsPath=/usr/lib/zabbix/alertscripts                                                                                                                 
+ExternalScripts=/usr/lib/zabbix/externalscripts                                                                                                               
+FpingLocation=/usr/sbin/fping                                                                                                                                 
+SSHKeyLocation=/var/lib/zabbix/ssh_keys                                                                                                                       
+User=zabbix                                                                                                                                                   
+SSLCertLocation=/var/lib/zabbix/ssl/certs/                                                                                                                    
+SSLKeyLocation=/var/lib/zabbix/ssl/keys/                                                                                                                      
+SSLCALocation=/var/lib/zabbix/ssl/ssl_ca/                                                                                                                     
+LoadModulePath=/var/lib/zabbix/modules/                                                                                                                       
+# Replace ZABBIX_WEB_SERVICE_HOST with your Zabbix Web Service hostname or IP
+WebServiceURL=http://ZABBIX_WEB_SERVICE_HOST:10053/report 

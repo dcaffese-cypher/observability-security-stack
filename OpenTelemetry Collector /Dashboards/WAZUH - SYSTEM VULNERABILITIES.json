@@ -1,0 +1,1586 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "datasource",
+          "uid": "grafana"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "target": {
+          "limit": 100,
+          "matchAny": false,
+          "tags": [],
+          "type": "dashboard"
+        },
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Wazuh – System Vulnerabilities (dot fields). agent.name, rule.groups, @timestamp y data.vulnerability.*",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 24,
+  "links": [
+    {
+      "asDropdown": true,
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "tags": [
+        "EDR"
+      ],
+      "targetBlank": true,
+      "title": "",
+      "type": "dashboards"
+    }
+  ],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 58,
+      "panels": [],
+      "title": "SYSTEM OS AND SOFTWARE VULNERABILITIES - SUMMARY",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "ceu3apk5r4x6of"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "N/A"
+                }
+              },
+              "type": "special"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-orange",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      },
+      "id": 43,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "sum"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "text": {},
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "bucketAggs": [
+            {
+              "field": "@timestamp",
+              "id": "2",
+              "settings": {
+                "interval": "auto",
+                "min_doc_count": "0",
+                "trimEdges": "0"
+              },
+              "type": "date_histogram"
+            }
+          ],
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "ceu3apk5r4x6of"
+          },
+          "metrics": [
+            {
+              "id": "1",
+              "type": "count"
+            }
+          ],
+          "query": "rule.groups:vulnerability-detector AND agent.name:$agent_name",
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "VULNERABILITY EVENTS",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "ceu3apk5r4x6of"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Time"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Time"
+              },
+              {
+                "id": "unit",
+                "value": "time: YYYY-MM-DD HH:mm:ss"
+              },
+              {
+                "id": "custom.align"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Count"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": -1
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "custom.align"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "rgba(50,172,45,0.97)",
+                      "value": 0
+                    },
+                    {
+                      "color": "rgba(237,129,40,0.89)",
+                      "value": 0
+                    },
+                    {
+                      "color": "#FA6400",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "agent.name"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "AGENT"
+              },
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "custom.align"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 4,
+        "y": 1
+      },
+      "id": 31,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "bucketAggs": [
+            {
+              "field": "agent.name",
+              "id": "2",
+              "settings": {
+                "execution_hint": "map",
+                "min_doc_count": "1",
+                "order": "desc",
+                "orderBy": "_term",
+                "size": "20"
+              },
+              "type": "terms"
+            }
+          ],
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "ceu3apk5r4x6of"
+          },
+          "format": "table",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "count"
+            }
+          ],
+          "query": "rule.groups:vulnerability-detector",
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "AGENTS",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "ceu3apk5r4x6of"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Time"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Time"
+              },
+              {
+                "id": "unit",
+                "value": "time: YYYY-MM-DD HH:mm:ss"
+              },
+              {
+                "id": "custom.align"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "data.vulnerability.cvss.cvss2.base_score"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "CVSS2"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 6,
+        "x": 12,
+        "y": 1
+      },
+      "id": 54,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "bucketAggs": [
+            {
+              "fake": true,
+              "field": "data.vulnerability.cvss.cvss2.base_score",
+              "id": "4",
+              "settings": {
+                "min_doc_count": 1,
+                "order": "desc",
+                "orderBy": "_term",
+                "size": "0"
+              },
+              "type": "terms"
+            }
+          ],
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "ceu3apk5r4x6of"
+          },
+          "metrics": [
+            {
+              "field": "select field",
+              "id": "1",
+              "type": "count"
+            }
+          ],
+          "query": "rule.groups:vulnerability-detector AND agent.name:$agent_name",
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "CVSS2 BASE SCORE",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "ceu3apk5r4x6of"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Time"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Time"
+              },
+              {
+                "id": "unit",
+                "value": "time: YYYY-MM-DD HH:mm:ss"
+              },
+              {
+                "id": "custom.align"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "data.vulnerability.cvss.cvss3.base_score"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "CVSS3"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
+      "id": 55,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "bucketAggs": [
+            {
+              "fake": true,
+              "field": "data.vulnerability.cvss.cvss3.base_score",
+              "id": "4",
+              "settings": {
+                "min_doc_count": 1,
+                "order": "desc",
+                "orderBy": "_term",
+                "size": "0"
+              },
+              "type": "terms"
+            }
+          ],
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "ceu3apk5r4x6of"
+          },
+          "metrics": [
+            {
+              "field": "select field",
+              "id": "1",
+              "type": "count"
+            }
+          ],
+          "query": "rule.groups:vulnerability-detector AND agent.name:$agent_name",
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "CVSS3 BASE SCORE",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "ceu3apk5r4x6of"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 9,
+        "x": 0,
+        "y": 8
+      },
+      "id": 37,
+      "options": {
+        "displayMode": "gradient",
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "maxVizHeight": 300,
+        "minVizHeight": 10,
+        "minVizWidth": 0,
+        "namePlacement": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "sum"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "sizing": "auto",
+        "text": {},
+        "valueMode": "color"
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "bucketAggs": [
+            {
+              "field": "data.vulnerability.package.name",
+              "id": "3",
+              "settings": {
+                "execution_hint": "global_ordinals",
+                "min_doc_count": "1",
+                "order": "desc",
+                "orderBy": "_count",
+                "size": "15"
+              },
+              "type": "terms"
+            },
+            {
+              "field": "@timestamp",
+              "id": "2",
+              "settings": {
+                "interval": "auto"
+              },
+              "type": "date_histogram"
+            }
+          ],
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "ceu3apk5r4x6of"
+          },
+          "format": "table",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "count"
+            }
+          ],
+          "query": "rule.groups:vulnerability-detector AND agent.name:$agent_name",
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "VULNERABLE SOFTWARE / PACKAGE",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "ceu3apk5r4x6of"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "decimals": 0,
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Critical"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#C4162A",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "High"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#F2495C",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Low"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#5794F2",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Medium"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#FF9830",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 7,
+        "x": 9,
+        "y": 8
+      },
+      "id": 45,
+      "maxDataPoints": 3,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "values": [
+            "value"
+          ]
+        },
+        "pieType": "donut",
+        "reduceOptions": {
+          "calcs": [
+            "sum"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "bucketAggs": [
+            {
+              "fake": true,
+              "field": "data.vulnerability.severity",
+              "id": "3",
+              "settings": {
+                "min_doc_count": 1,
+                "order": "desc",
+                "orderBy": "_count",
+                "size": "0"
+              },
+              "type": "terms"
+            },
+            {
+              "field": "@timestamp",
+              "id": "2",
+              "settings": {
+                "interval": "auto",
+                "min_doc_count": 0,
+                "trimEdges": 0
+              },
+              "type": "date_histogram"
+            }
+          ],
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "ceu3apk5r4x6of"
+          },
+          "metrics": [
+            {
+              "field": "select field",
+              "id": "1",
+              "type": "count"
+            }
+          ],
+          "query": "rule.groups:vulnerability-detector AND agent.name:$agent_name",
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "VULNERABILITY LEVELS",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "ceu3apk5r4x6of"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": false,
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Time"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Time"
+              },
+              {
+                "id": "unit",
+                "value": "time: YYYY-MM-DD HH:mm:ss"
+              },
+              {
+                "id": "custom.align"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "data.vulnerability.cve"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "CVE"
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "NVD - NIST DATABASE",
+                    "url": "https://nvd.nist.gov/vuln/detail/${__value.text}"
+                  }
+                ]
+              },
+              {
+                "id": "custom.align",
+                "value": "left"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Unique Count"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "HITS"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 16,
+        "y": 8
+      },
+      "id": 47,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "bucketAggs": [
+            {
+              "fake": true,
+              "field": "data.vulnerability.cve",
+              "id": "7",
+              "settings": {
+                "min_doc_count": 1,
+                "order": "desc",
+                "orderBy": "_term",
+                "size": "10"
+              },
+              "type": "terms"
+            }
+          ],
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "ceu3apk5r4x6of"
+          },
+          "metrics": [
+            {
+              "field": "data.vulnerability.cve",
+              "id": "1",
+              "type": "cardinality"
+            }
+          ],
+          "query": "rule.groups:vulnerability-detector AND agent.name:$agent_name",
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "CVEs",
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {
+            "reducers": []
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 17
+      },
+      "id": 60,
+      "panels": [],
+      "title": "SYSTEM OS AND SOFTWARE VULNERABILITIES - ENTRIES",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "ceu3apk5r4x6of"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": false,
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "data.vulnerability.package.name"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "PACKAGE NAME"
+              },
+              {
+                "id": "custom.align",
+                "value": "left"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Unique Count"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "HITS"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "data.vulnerability.package.condition"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "CONDITION"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CONDITION"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 378
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 18
+      },
+      "id": 53,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "bucketAggs": [
+            {
+              "fake": true,
+              "field": "data.vulnerability.package.name",
+              "id": "8",
+              "settings": {
+                "min_doc_count": 1,
+                "order": "desc",
+                "orderBy": "_term",
+                "size": "10"
+              },
+              "type": "terms"
+            },
+            {
+              "fake": true,
+              "field": "data.vulnerability.package.condition",
+              "id": "7",
+              "settings": {
+                "min_doc_count": 1,
+                "order": "desc",
+                "orderBy": "_term",
+                "size": "10"
+              },
+              "type": "terms"
+            }
+          ],
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "ceu3apk5r4x6of"
+          },
+          "metrics": [
+            {
+              "field": "data.vulnerability.package.condition",
+              "id": "1",
+              "type": "cardinality"
+            }
+          ],
+          "query": "rule.groups:vulnerability-detector AND agent.name:$agent_name",
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "SOFTWARE / PACKAGE",
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {
+            "reducers": []
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "ceu3apk5r4x6of"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "data.vulnerability.package.name"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "PACKAGE"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "data.vulnerability.package.condition"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "STATUS"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "data.vulnerability.cve"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "CVE"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "agent.name"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "AGENT"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "data.vulnerability.title"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "CVE TITLE"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "data.vulnerability.severity"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "SEVERITY"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 28
+      },
+      "id": 48,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "bucketAggs": [],
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "ceu3apk5r4x6of"
+          },
+          "metrics": [
+            {
+              "id": "1",
+              "settings": {
+                "size": "500"
+              },
+              "type": "raw_data"
+            }
+          ],
+          "query": "rule.groups:vulnerability-detector AND agent.name:$agent_name",
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "SYSTEM VULNERABILITIES - DETAILS",
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "@timestamp",
+                "agent.name",
+                "data.vulnerability.cve",
+                "data.vulnerability.severity",
+                "data.vulnerability.title",
+                "data.vulnerability.package.name"
+              ]
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "ceu3apk5r4x6of"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "data.vulnerability.package.name"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "PACKAGE"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "data.vulnerability.package.condition"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "STATUS"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "data.vulnerability.cve"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "CVE"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "agent.name"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "AGENT"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "data.vulnerability.title"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "CVE TITLE"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "data.vulnerability.severity"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "SEVERITY"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "data.vulnerability.updated"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "CVE LAST UPDATE"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "data.vulnerability.references"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "REFERENCES"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "data.vulnerability.rationale"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "VULNERABILITY INFO"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "VULNERABILITY INFO"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 201
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 13,
+        "w": 24,
+        "x": 0,
+        "y": 40
+      },
+      "id": 56,
+      "options": {
+        "footer": {
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "bucketAggs": [],
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "ceu3apk5r4x6of"
+          },
+          "metrics": [
+            {
+              "id": "1",
+              "settings": {
+                "size": "500"
+              },
+              "type": "raw_data"
+            }
+          ],
+          "query": "rule.groups:vulnerability-detector AND agent.name:$agent_name",
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "VULNERABILITIES INFO",
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "@timestamp",
+                "agent.name",
+                "data.vulnerability.package.name",
+                "data.vulnerability.rationale",
+                "data.vulnerability.references",
+                "data.vulnerability.severity",
+                "data.vulnerability.title",
+                "data.vulnerability.updated",
+                "data.vulnerability.package.condition"
+              ]
+            }
+          }
+        }
+      ],
+      "type": "table"
+    }
+  ],
+  "preload": false,
+  "refresh": "",
+  "schemaVersion": 41,
+  "tags": [
+    "wazuh",
+    "alerts",
+    "security"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "elasticsearch",
+          "uid": "ceu3apk5r4x6of"
+        },
+        "definition": "{ \"find\": \"terms\", \"field\": \"agent.name\", \"query\": \"rule.groups:vulnerability-detector\"}",
+        "includeAll": true,
+        "label": "Agent",
+        "name": "agent_name",
+        "options": [],
+        "query": "{ \"find\": \"terms\", \"field\": \"agent.name\", \"query\": \"rule.groups:vulnerability-detector\"}",
+        "refresh": 2,
+        "regex": "",
+        "sort": 2,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-90d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "WAZUH - SYSTEM VULNERABILITIES",
+  "uid": "1-SyUa0nzkj",
+  "version": 2
+}

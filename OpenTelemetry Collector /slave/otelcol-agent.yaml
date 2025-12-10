@@ -1,0 +1,111 @@
+extensions:
+  host_observer: {}
+
+receivers:
+  hostmetrics:
+    root_path: /hostfs
+    collection_interval: 15s
+    scrapers:
+      cpu: {}
+      memory: {}
+      disk: {}
+      filesystem:
+        exclude_mount_points:
+          match_type: regexp
+          mount_points:
+            - ^/snap($|/).*
+            - ^/boot($|/).*
+            - ^/boot/efi($|/).*
+        exclude_fs_types:
+          match_type: strict
+          fs_types: [squashfs, overlay, tmpfs, devtmpfs, proc, sysfs, devpts, cgroup2]
+      network: {}
+      load: {}
+      paging: {}
+      processes: {}
+      # process: {}  # if needed, enable later
+
+  docker_stats:
+    collection_interval: 15s
+    endpoint: unix:///var/run/docker.sock
+
+  filelog/containers:
+    include:
+      - /var/lib/docker/containers/*/*.log
+      - /var/log/containers/*.log
+    start_at: beginning
+    operators:
+      - type: json_parser
+        parse_from: body
+        timestamp:
+          parse_from: attributes.time
+          layout_type: gotime
+          layout: 2006-01-02T15:04:05.000000000Z07:00
+        severity:
+          parse_from: attributes.stream
+
+  otlp:
+    protocols:
+      grpc:
+      http:
+
+processors:
+  resourcedetection:
+    detectors: [system]
+    override: true
+
+  attributes/service-name:
+    actions:
+      - action: upsert          # overwrites if something was set previously
+        key: service.name
+        value: ${SERVICE_NAME}
+
+  batch: {}
+
+exporters:
+  otlphttp:
+    endpoint: ${MASTER_OTLP_HTTP}
+    compression: gzip
+    tls: { insecure: true }
+    retry_on_failure: { enabled: true }
+
+  # NEW: exposes metrics (system_*, docker_*) for Prometheus on :9464
+  prometheus/host:
+    endpoint: 0.0.0.0:9464
+    enable_open_metrics: true
+    metric_expiration: 5m
+    resource_to_telemetry_conversion:
+      enabled: true
+
+  # (optional) if using gRPC, keep this exporter and change it in pipelines
+  otlp:
+    endpoint: ${MASTER_OTLP_GRPC}
+    tls: { insecure: true }
+    compression: gzip
+    retry_on_failure: { enabled: true }
+
+service:
+  extensions: [host_observer]
+  telemetry:
+    logs: { level: warn }
+    metrics:
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: "0.0.0.0"
+                port: 8888
+
+  pipelines:
+    metrics:
+      receivers: [hostmetrics, docker_stats]
+      processors: [resourcedetection, attributes/service-name, batch]
+      exporters: [otlphttp, prometheus/host]   # ← OTLP to master + local exposure :9464
+    logs:
+      receivers: [filelog/containers, otlp]
+      processors: [resourcedetection, attributes/service-name, batch]
+      exporters: [otlphttp]
+    traces:
+      receivers: [otlp]
+      processors: [resourcedetection, attributes/service-name, batch]
+      exporters: [otlphttp]

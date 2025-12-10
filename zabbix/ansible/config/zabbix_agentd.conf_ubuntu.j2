@@ -1,0 +1,10 @@
+PidFile=/run/zabbix/zabbix_agentd.pid
+LogFile=/var/log/zabbix-agent/zabbix_agentd.log
+LogFileSize=0
+ListenPort=10050
+# Replace ZABBIX_SERVER_IP with your Zabbix server IP or hostname
+Server=ZABBIX_SERVER_IP
+ServerActive=ZABBIX_SERVER_IP
+Hostname={{ ansible_hostname }}
+HostnameItem={{ ansible_hostname }}
+Include=/etc/zabbix/zabbix_agentd.conf.d/*.conf

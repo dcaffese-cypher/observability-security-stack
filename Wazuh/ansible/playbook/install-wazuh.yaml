@@ -1,0 +1,17 @@
+---
+- name: Configure Remote Server
+  hosts: my_servers
+  become: true
+
+  tasks:
+    - name: Include task Redhat
+      include: redhat-wazuh.yaml
+      when:
+        - ansible_os_family == "RedHat" or ansible_distribution == "Rocky"
+#        - not wazuh_status.stat.exists
+
+    - name: Include task Ubuntu
+      include: debian-wazuh.yaml
+      when:
+        - ansible_os_family == "Debian"
+#        - not wazuh_status.stat.exists

@@ -1,0 +1,891 @@
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: network-switches-simple
+    folder: Network Alerts
+    interval: 1m
+    rules:
+      # 1) Interfaces went down within 5 minutes
+      - uid: nwifdown5m
+        title: Interfaces went down within 5 minutes
+        condition: C
+        data:
+          - refId: B
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: prometheus
+            model:
+              adhocFilters: []
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              exemplar: false
+              expr: |
+                (nvswitch_interface_oper_state == 2
+                  or nvswitch_interface_oper_state == 8)
+                and on(instance, interface)
+                  (changes(nvswitch_interface_oper_state[5m]) > 0)
+              instant: false
+              interval: ""
+              intervalMs: 60000
+              legendFormat: '{{instance}} {{interface}}'
+              maxDataPoints: 43200
+              range: true
+              refId: B
+          - refId: A
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: []
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: A
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 1m
+        annotations: {}
+        labels:
+          severity: critical
+        isPaused: false
+        notification_settings:
+          receiver: grafana-default-email
+
+      # 2) Bond went down
+      - uid: nwbonddown
+        title: Bond went down
+        condition: C
+        data:
+          - refId: B
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: prometheus
+            model:
+              adhocFilters: []
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              exemplar: false
+              expr: |
+                nvswitch_interface_info{
+                  operstate="down",
+                  ifalias=~"bond.*"
+                } == 1
+              instant: false
+              interval: ""
+              intervalMs: 60000
+              legendFormat: '{{instance}} {{interface}}'
+              maxDataPoints: 43200
+              range: true
+              refId: B
+          - refId: A
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: []
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: A
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 1m
+        annotations: {}
+        labels:
+          severity: critical
+        isPaused: false
+        notification_settings:
+          receiver: grafana-default-email
+
+      # 3) Flaps
+      - uid: nwflaps
+        title: Flaps
+        condition: C
+        data:
+          - refId: B
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: prometheus
+            model:
+              adhocFilters: []
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              exemplar: false
+              expr: |
+                nvswitch_interface_oper_state == 2
+                and on(instance, interface)
+                  (changes(nvswitch_interface_oper_state[5m]) > 2)
+              instant: false
+              interval: ""
+              intervalMs: 60000
+              legendFormat: '{{instance}} {{interface}}'
+              maxDataPoints: 43200
+              range: true
+              refId: B
+          - refId: A
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: []
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: A
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 1m
+        annotations: {}
+        labels:
+          severity: warning
+        isPaused: false
+        notification_settings:
+          receiver: grafana-default-email
+
+      # 4) Interfaces with FCS, PHY, CRC_Align Errors
+      - uid: nwfcsphycrc
+        title: Interfaces with FCS, PHY, CRC_Align Errors
+        condition: C
+        data:
+          - refId: B
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: prometheus
+            model:
+              adhocFilters: []
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              exemplar: false
+              expr: |
+                (
+                  increase(nvswitch_interface_dot3_stats_fcs_errors[5m]) > 0
+                )
+                or
+                (
+                  increase(nvswitch_interface_phy_stats_phy_effective_errors[5m]) > 0
+                )
+                or
+                (
+                  increase(nvswitch_interface_ether_stats_crc_align_errors[5m]) > 0
+                )
+              instant: false
+              interval: ""
+              intervalMs: 60000
+              legendFormat: '{{instance}} {{interface}}'
+              maxDataPoints: 43200
+              range: true
+              refId: B
+          - refId: A
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: []
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: A
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 1m
+        annotations: {}
+        labels:
+          severity: warning
+        isPaused: false
+        notification_settings:
+          receiver: grafana-default-email
+
+      # 5) Proto and carrier down
+      - uid: nwprotocarrier
+        title: Proto and carrier down
+        condition: C
+        data:
+          - refId: B
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: prometheus
+            model:
+              adhocFilters: []
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              exemplar: false
+              expr: |
+                (
+                  increase(nvswitch_interface_proto_down_total[5m]) > 0
+                )
+                or
+                (
+                  increase(nvswitch_interface_carrier_down_changes_total[5m]) > 0
+                )
+              instant: false
+              interval: ""
+              intervalMs: 60000
+              legendFormat: '{{instance}} {{interface}}'
+              maxDataPoints: 43200
+              range: true
+              refId: B
+          - refId: A
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: []
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: A
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 1m
+        annotations: {}
+        labels:
+          severity: warning
+        isPaused: false
+        notification_settings:
+          receiver: grafana-default-email
+
+      # 6) Switch DOWN (availability)
+      - uid: nwuptime
+        title: Switch down
+        condition: C
+        data:
+          - refId: B
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: prometheus
+            model:
+              adhocFilters: []
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              exemplar: false
+              expr: |
+                up{job=~"scrape_ar37.*"} == 0
+              instant: false
+              interval: ""
+              intervalMs: 60000
+              legendFormat: '{{instance}}'
+              maxDataPoints: 43200
+              range: true
+              refId: B
+          - refId: A
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: []
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: A
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 1m
+        annotations: {}
+        labels:
+          severity: critical
+        isPaused: false
+        notification_settings:
+          receiver: grafana-default-email
+
+      # 7) FAN STATUS
+      - uid: nwfanfail
+        title: FAN status not OK
+        condition: C
+        data:
+          - refId: B
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: prometheus
+            model:
+              adhocFilters: []
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              exemplar: false
+              expr: |
+                nvswitch_platform_environment_fan_state != 1
+              instant: false
+              interval: ""
+              intervalMs: 60000
+              legendFormat: '{{instance}}'
+              maxDataPoints: 43200
+              range: true
+              refId: B
+          - refId: A
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: []
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: A
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 1m
+        annotations: {}
+        labels:
+          severity: warning
+        isPaused: false
+        notification_settings:
+          receiver: grafana-default-email
+
+      # 8) PSU STATUS
+      - uid: nwpsufail
+        title: PSU status not OK
+        condition: C
+        data:
+          - refId: B
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: prometheus
+            model:
+              adhocFilters: []
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              exemplar: false
+              expr: |
+                nvswitch_platform_environment_psu_state != 1
+              instant: false
+              interval: ""
+              intervalMs: 60000
+              legendFormat: '{{instance}}'
+              maxDataPoints: 43200
+              range: true
+              refId: B
+          - refId: A
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: []
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: A
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 1m
+        annotations: {}
+        labels:
+          severity: warning
+        isPaused: false
+        notification_settings:
+          receiver: grafana-default-email
+
+      # 9) Temperature warning
+      - uid: nwtempwarn
+        title: Temperature warning
+        condition: C
+        data:
+          - refId: B
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: prometheus
+            model:
+              adhocFilters: []
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              exemplar: false
+              expr: |
+                nvswitch_platform_environment_temp_state != 1
+              instant: false
+              interval: ""
+              intervalMs: 60000
+              legendFormat: '{{instance}}'
+              maxDataPoints: 43200
+              range: true
+              refId: B
+          - refId: A
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: []
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: A
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 1m
+        annotations: {}
+        labels:
+          severity: warning
+        isPaused: false
+        notification_settings:
+          receiver: grafana-default-email
+     
+      # 10) Temperature critical
+      - uid: nwtempcrit
+        title: Temperature critical
+        condition: C
+        data:
+          - refId: B
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: prometheus
+            model:
+              adhocFilters: []
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              exemplar: false
+              expr: |
+                nvswitch_platform_environment_temp_current
+                  > nvswitch_platform_environment_temp_crit
+              instant: false
+              interval: ""
+              intervalMs: 60000
+              legendFormat: '{{instance}}'
+              maxDataPoints: 43200
+              range: true
+              refId: B
+          - refId: A
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: []
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: A
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 1m
+        annotations: {}
+        labels:
+          severity: critical
+        isPaused: false
+        notification_settings:
+          receiver: grafana-default-email

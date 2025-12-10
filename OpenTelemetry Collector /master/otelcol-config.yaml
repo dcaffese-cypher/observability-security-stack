@@ -1,0 +1,99 @@
+receivers:
+  # Receive from the agents
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+        cors:
+          allowed_origins: ["http://*"]
+
+  # Internal metrics of the collector itself (Prometheus scrape)
+#  prometheus/collector:
+#    config:
+#      scrape_configs:
+#        - job_name: "opentelemetry-collector"
+#          scrape_interval: 15s
+#          static_configs:
+#            - targets: ["127.0.0.1:8888"]
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+    path: /ready
+
+processors:
+  # If any agent does not send service.name, we fill it with host.name
+  attributes/ensure-service-name:
+    actions:
+      - action: insert
+        key: service.name
+        from_attribute: host.name
+  batch: {}
+
+  # Map lower-case resource attrs to uppercase labels (promtail-style)
+  attributes/map-labels:
+    actions:
+      - action: upsert
+        key: CLIENT
+        from_attribute: cliente
+      - action: upsert
+        key: ENVIRONMENT
+        from_attribute: entorno
+      - action: upsert
+        key: COUNTRY
+        from_attribute: pais
+      - action: upsert
+        key: SERVICE_NAME
+        from_attribute: service.name
+
+  # Ensure Loki label hints exist (promote resource attrs to labels)
+  attributes/loki-label-hint:
+    actions:
+      - action: upsert
+        key: loki.resource.labels
+        value: CLIENT,ENVIRONMENT,COUNTRY,SERVICE_NAME
+
+  # Promote selected record attributes as labels (helpful for containers)
+  attributes/loki-attr-labels:
+    actions:
+      - action: upsert
+        key: loki.attribute.labels
+        value: log.file.path
+
+exporters:
+  # Send metrics to native Prometheus over OTLP/HTTP
+  otlphttp/metrics:
+    endpoint: http://prometheus:9090/api/v1/otlp
+    tls:
+      insecure: true
+
+  # Send logs to Loki via OTLP/HTTP (Loki 3.x)
+  otlphttp/logs:
+    endpoint: http://loki:3100/otlp
+    tls:
+      insecure: true
+
+service:
+  telemetry:
+    metrics:
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: "0.0.0.0"
+                port: 8888
+
+  extensions: [health_check]
+
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp/metrics]
+
+    logs:
+      receivers: [otlp]
+      processors: [attributes/ensure-service-name, attributes/map-labels, attributes/loki-label-hint, attributes/loki-attr-labels, batch]
+      exporters: [otlphttp/logs]
