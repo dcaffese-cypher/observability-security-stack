@@ -2,6 +2,12 @@
 
 A complete, production-ready observability solution for centralized metrics, logs, and traces collection across distributed infrastructure. This stack provides automated deployment, intelligent resource management, and comprehensive monitoring capabilities.
 
+## Quick Start
+
+```bash
+git clone https://github.com/dcaffese-cypher/observability-security-stack.git
+cd observability-security-stack
+
 ## 🏗️ Architecture Overview
 
 This project implements a **master-agent** observability architecture:
@@ -28,11 +34,10 @@ This project implements a **master-agent** observability architecture:
          │                    │                    │
 ┌────────▼────────┐  ┌────────▼────────┐  ┌──────▼────────┐
 │  Agent Server 1 │  │  Agent Server 2 │  │ Agent Server N│
-│                 │  │                 │  │                │
-│  OTel Agent    │  │  OTel Agent    │  │  OTel Agent   │
-│  Promtail      │  │  Promtail      │  │  Promtail     │
-│  (Metrics)     │  │  (Metrics)     │  │  (Metrics)    │
-│  (Logs)        │  │  (Logs)        │  │  (Logs)       │
+│                 │  │                 │  │               │
+│  OTel Agent     │  │  OTel Agent     │  │  OTel Agent   │
+│  (Metrics)      │  │  (Metrics)      │  │  (Metrics)    │
+│  (Logs)         │  │  (Logs)         │  │  (Logs)       │
 └─────────────────┘  └─────────────────┘  └───────────────┘
 ```
 
@@ -67,7 +72,6 @@ Automated agent deployment using Ansible:
 Containerized agent deployment:
 
 - ✅ Docker Compose-based setup
-- ✅ Promtail for additional log collection
 - ✅ Docker logging driver integration
 - ✅ Environment-based configuration
 
