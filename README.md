@@ -38,7 +38,7 @@ This project implements a **master-agent** observability architecture:
 
 ## 📦 Components
 
-### Master Stack (`OpenTelemetry Collector/master/`)
+### Master Stack (`opentelemetry-collector/master/`)
 
 Central observability hub providing:
 
@@ -50,7 +50,7 @@ Central observability hub providing:
 
 ### Agent Deployment Options
 
-#### Option 1: Ansible Deployment (`Ansible Agent OpenTelemetry Collector/`)
+#### Option 1: Ansible Deployment (`ansible-agent-otel-collector/`)
 
 Automated agent deployment using Ansible:
 
@@ -62,7 +62,7 @@ Automated agent deployment using Ansible:
 
 **Best for**: Large-scale deployments, infrastructure automation
 
-#### Option 2: Docker Compose Deployment (`OpenTelemetry Collector/slave/`)
+#### Option 2: Docker Compose Deployment (`opentelemetry-collector/slave/`)
 
 Containerized agent deployment:
 
@@ -98,7 +98,7 @@ Intelligent Prometheus block management:
 ### 1. Deploy Master Stack
 
 ```bash
-cd "OpenTelemetry Collector/master"
+cd "opentelemetry-collector/master"
 
 # Configure environment (update IPs, passwords in docker-compose.yml)
 # Prepare Loki data directory
@@ -116,7 +116,7 @@ See [Master README](OpenTelemetry%20Collector/master/README.md) for detailed ins
 #### Using Ansible (Recommended for multiple servers):
 
 ```bash
-cd "Ansible Agent OpenTelemetry Collector"
+cd "ansible-agent-otel-collector"
 
 # Edit inventory.ini with your servers
 # Replace MASTER_SERVER_IP with your master server IP
@@ -130,7 +130,7 @@ See [Ansible Agent README](Ansible%20Agent%20OpenTelemetry%20Collector/README.md
 #### Using Docker Compose (For individual servers):
 
 ```bash
-cd "OpenTelemetry Collector/slave"
+cd "opentelemetry-collector/slave"
 
 # Create .env file (replace MASTER_SERVER_IP)
 # Configure environment variables
@@ -190,12 +190,12 @@ chmod +x prometheus-tsdb-trim.sh
 ```
 .
 ├── README.md                                    # This file
-├── Ansible Agent OpenTelemetry Collector/      # Ansible deployment
+├── ansible-agent-otel-collector/      # Ansible deployment
 │   ├── deploy_otel_agent.yml                   # Main playbook
 │   ├── inventory.ini                           # Server inventory
 │   ├── template/                                # Configuration templates
 │   └── README.md                               # Deployment guide
-├── OpenTelemetry Collector/
+├── opentelemetry-collector/
 │   ├── master/                                 # Master stack
 │   │   ├── docker-compose.yml                  # Service definitions
 │   │   ├── otelcol-config.yaml                 # Collector config
