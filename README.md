@@ -256,33 +256,6 @@ docker compose ps
 * Network monitoring (SNMP)
 * Multi-environment deployments (prod/stage/dev)
 
----
 
-## 🤝 Contributing
 
-This repository reflects **real production usage**.
 
-You’re welcome to:
-
-* Open issues
-* Fork and adapt
-* Share improvements
-
----
-
-## ⚠️ Important Notes
-
-* Replace all placeholders (`MASTER_SERVER_IP`, domains, credentials)
-* Test in non-production first
-* Back up Prometheus and Loki data
-* Monitor the observability stack itself
-
----
-
-**Built for production. Designed for scale. Ready to deploy.**
-
-* Ajustarlo aún más para **audiencia LinkedIn**
-* Agregar un **diagrama visual**
-* O hacer una **versión resumida** para el post
-
-Decime cómo seguimos.
