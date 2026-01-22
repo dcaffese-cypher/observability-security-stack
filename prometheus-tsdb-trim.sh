@@ -1,266 +1,176 @@
 #!/usr/bin/env bash
-# prometheus-tsdb-trim.sh — Trim Prometheus TSDB blocks by DURATION (>20h)
-# - Auto-detects Prometheus container and data mount
-# - Deletes TSDB blocks whose DURATION is strictly > 20h
-# - Prints diagnostics (df, Docker sizes, Prom volume size)
-# - Optional DRY RUN: set DRY_RUN=1 (no deletions)
-# - Optional LOG_FILE: set LOG_FILE=/path/to/log for file logging
-# Requires: Docker, prom/prometheus image to supply promtool
+# prometheus-tsdb-guard.sh
+#
+# Safe diagnostics + guardrails for Prometheus TSDB (Docker).
+# Designed for root's cron. Never fails silently.
+#
+# Default mode (DELETE_BLOCKS=0): diagnostics + WAL mitigation only.
+#
+# Tunables via env:
+#   LOG_FILE=/var/log/prometheus-tsdb-guard.log
+#   PROM_CONTAINER=master_prometheus
+#   PROM_IMAGE=prom/prometheus:v3.5.0
+#   KEEP_DAYS=7            (used only when DELETE_BLOCKS=1)
+#   DELETE_BLOCKS=0        (0=diagnose only, 1=delete blocks older than KEEP_DAYS)
+#   WAL_MAX_GB=10          (truncate WAL if >= this)
+#   EMERGENCY_RESET=0      (0 disabled, 1 wipes TSDB if disk critical AND promtool fails)
+#   DISK_CRIT_PERCENT=95
+#   MOUNTPOINT=/
 
 set -euo pipefail
 
-# --- Tunables ---
-DURATION_HOURS_THRESHOLD="${DURATION_HOURS_THRESHOLD:-20}"   # delete blocks with DURATION > this (hours)
-PROM_IMAGE="${PROM_IMAGE:-prom/prometheus:v3.5.0}"           # image to pull promtool from
-DRY_RUN="${DRY_RUN:-0}"                                      # 1 = don't delete, just show
-LOG_FILE="${LOG_FILE:-}"                                     # optional: log file path
-LOG_PREFIX="[prom-tsdb-trim]"
-PROM_CONTAINER="${PROM_CONTAINER:-}"                         # optional: force a container name (e.g., master_prometheus)
+LOG_FILE="${LOG_FILE:-/var/log/prometheus-tsdb-guard.log}"
+PROM_CONTAINER="${PROM_CONTAINER:-master_prometheus}"
+PROM_IMAGE="${PROM_IMAGE:-prom/prometheus:v3.5.0}"
 
-# --- Logging function ---
-log() {
-  local msg="$1"
-  local timestamp
-  timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-  echo "[$timestamp] $LOG_PREFIX $msg" | tee -a "${LOG_FILE:-/dev/null}"
+KEEP_DAYS="${KEEP_DAYS:-7}"
+DELETE_BLOCKS="${DELETE_BLOCKS:-0}"
+
+WAL_MAX_GB="${WAL_MAX_GB:-10}"
+
+EMERGENCY_RESET="${EMERGENCY_RESET:-0}"
+DISK_CRIT_PERCENT="${DISK_CRIT_PERCENT:-95}"
+MOUNTPOINT="${MOUNTPOINT:-/}"
+
+ts() { date +"%Y-%m-%d %H:%M:%S"; }
+log() { echo "[$(ts)] [prom-tsdb-guard] $*" | tee -a "$LOG_FILE"; }
+
+require_cmd() { command -v "$1" >/dev/null 2>&1 || { log "ERROR: missing command: $1"; exit 1; }; }
+
+bytes_to_gib() { awk -v b="$1" 'BEGIN { printf "%.0f", b/1024/1024/1024 }'; }
+
+get_used_pct() {
+  local raw
+  raw="$(df -P "${MOUNTPOINT}" | awk 'NR==2 {print $5}')"
+  echo "${raw%%%}"
 }
 
-# --- Convert duration string (e.g., "53h59m59.975s") to total hours (float) ---
-duration_to_hours() {
-  local dur="$1"
-  
-  # Use awk for more robust parsing (handles all formats)
-  # Extract hours, minutes, and seconds, then convert to total hours
-  awk -v dur="$dur" '
-    BEGIN {
-      hours = 0
-      minutes = 0
-      seconds = 0
-      
-      # Extract hours: match pattern like "53h" or "5h"
-      if (match(dur, /([0-9]+)h/, arr)) {
-        hours = arr[1]
-      }
-      
-      # Extract minutes: match pattern like "59m" or "5m"
-      if (match(dur, /([0-9]+)m/, arr)) {
-        minutes = arr[1]
-      }
-      
-      # Extract seconds: match pattern like "59.975s" or "5s"
-      if (match(dur, /([0-9]+\.?[0-9]*)s/, arr)) {
-        seconds = arr[1]
-      }
-      
-      # Convert to total hours: hours + minutes/60 + seconds/3600
-      printf "%.6f", hours + minutes/60 + seconds/3600
-    }'
-}
+require_cmd df
+require_cmd docker
+require_cmd awk
+require_cmd du
+require_cmd sort
+require_cmd head
 
-log "Starting trim. Threshold: > ${DURATION_HOURS_THRESHOLD}h  Dry-run: ${DRY_RUN}"
+log "===== START ====="
+log "Disk usage:"
+df -h | sed 's/^/  /' | tee -a "$LOG_FILE"
 
-# --- Diagnostics (system + docker) ---
-log "Disk usage (df -h):"
-df -h | sed 's/^/  /'
-
-log "Docker container sizes:"
-docker ps -s --format 'table {{.Names}}\t{{.Size}}' | sed 's/^/  /'
-
-log "Overlay UpperDir sizes per container:"
-while read -r cid; do
-  [[ -z "$cid" ]] && continue
-  name="$(docker inspect -f '{{.Name}}' "$cid" 2>/dev/null | sed 's#^/##' || echo "unknown")"
-  upper="$(docker inspect -f '{{.GraphDriver.Data.UpperDir}}' "$cid" 2>/dev/null || echo "")"
-  [[ -z "${upper:-}" ]] && upper="(none)"
-  if [[ "$upper" != "(none)" ]] && [[ -d "$upper" ]]; then
-    sz="$(sudo du -sh "$upper" 2>/dev/null | awk '{print $1}' || echo "N/A")"
-    echo "  $name -> $upper    $sz"
-  fi
-done < <(docker ps -q 2>/dev/null || true)
-
-# --- Find the Prometheus container if not provided ---
-if [[ -z "${PROM_CONTAINER}" ]]; then
-  # try by image
-  if cid=$(docker ps --filter "ancestor=${PROM_IMAGE}" -q 2>/dev/null | head -n1) && [[ -n "$cid" ]]; then
-    PROM_CONTAINER="$(docker inspect -f '{{.Name}}' "$cid" 2>/dev/null | sed 's#^/##' || echo "")"
-  fi
-  
-  # fallback: first container with 'prometheus' in name
-  if [[ -z "${PROM_CONTAINER}" ]]; then
-    PROM_CONTAINER="$(docker ps --format '{{.Names}}' 2>/dev/null | grep -m1 -i prometheus || true)"
-  fi
+if docker system df >/dev/null 2>&1; then
+  log "Docker system df:"
+  docker system df | sed 's/^/  /' | tee -a "$LOG_FILE"
 fi
 
-if [[ -z "${PROM_CONTAINER}" ]]; then
-  log "ERROR: Could not detect Prometheus container (set PROM_CONTAINER env)."
+if ! docker inspect "$PROM_CONTAINER" >/dev/null 2>&1; then
+  log "ERROR: Prometheus container not found: $PROM_CONTAINER"
+  docker ps -a --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}' | sed 's/^/  /' | tee -a "$LOG_FILE"
+  log "===== END ====="
   exit 1
 fi
 
-log "Using Prometheus container: ${PROM_CONTAINER}"
-
-# --- Find the Prometheus TSDB directory (host path) ---
-# Prefer the mount with destination '/prometheus'; fallback to the largest mount containing 'prom'
-PROM_DIR=""
-if docker inspect "$PROM_CONTAINER" >/dev/null 2>&1; then
-  # check mounts
-  mapfile -t mounts < <(docker inspect -f '{{range .Mounts}}{{println .Source .Destination}}{{end}}' "$PROM_CONTAINER" 2>/dev/null || true)
-  best_src=""
-  for line in "${mounts[@]}"; do
-    [[ -z "$line" ]] && continue
-    src="$(awk '{print $1}' <<<"$line")"
-    dst="$(awk '{print $2}' <<<"$line")"
-    if [[ "$dst" == "/prometheus" ]]; then
-      best_src="$src"
-      break
-    fi
-    # fallback heuristic
-    if [[ -z "$best_src" && "$dst" == *prom* ]]; then
-      best_src="$src"
-    fi
-  done
-  PROM_DIR="$best_src"
-fi
-
-# If still empty, try the known volume name on your host (common default)
-if [[ -z "${PROM_DIR}" ]]; then
-  # Try volume named like '<something>_prometheus-data'
-  cand_vol="$(docker volume ls --format '{{.Name}}' 2>/dev/null | grep -m1 -E 'prometheus.*data|master_prometheus-data' || true)"
-  if [[ -n "$cand_vol" ]]; then
-    PROM_DIR="$(docker volume inspect "$cand_vol" -f '{{.Mountpoint}}' 2>/dev/null || echo "")"
-  fi
-fi
-
-if [[ -z "${PROM_DIR}" || ! -d "${PROM_DIR}" ]]; then
-  log "ERROR: Could not locate Prometheus TSDB mount on host."
+PROM_DIR="$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/prometheus"}}{{.Source}}{{end}}{{end}}' "$PROM_CONTAINER" 2>/dev/null || true)"
+if [[ -z "${PROM_DIR:-}" || ! -d "$PROM_DIR" ]]; then
+  log "ERROR: Could not locate host mount for /prometheus. Found: '${PROM_DIR:-<empty>}'"
+  log "Mounts:"
+  docker inspect -f '{{range .Mounts}}{{println .Type .Source "->" .Destination}}{{end}}' "$PROM_CONTAINER" | sed 's/^/  /' | tee -a "$LOG_FILE"
+  log "===== END ====="
   exit 1
 fi
 
-log "Prometheus TSDB dir: ${PROM_DIR}"
-log "Prometheus TSDB size now:"
-sudo du -sh "${PROM_DIR}" 2>/dev/null | sed 's/^/  /'
-sudo du -sh "${PROM_DIR}"/* 2>/dev/null | sort -hr | head | sed 's/^/  /'
+log "Prometheus TSDB host dir: $PROM_DIR"
+log "Prometheus TSDB size:"
+du -sh "$PROM_DIR" 2>/dev/null | sed 's/^/  /' | tee -a "$LOG_FILE"
+du -sh "$PROM_DIR"/* 2>/dev/null | sort -hr | head -n 15 | sed 's/^/  /' | tee -a "$LOG_FILE" || true
 
-# --- List blocks with promtool (ULID, DURATION) ---
+# WAL mitigation
+WAL_DIR="$PROM_DIR/wal"
+if [[ -d "$WAL_DIR" ]]; then
+  WAL_BYTES="$(du -sb "$WAL_DIR" 2>/dev/null | awk '{print $1}' || echo 0)"
+  WAL_GIB="$(bytes_to_gib "$WAL_BYTES")"
+  log "WAL size: ~${WAL_GIB} GiB (threshold: ${WAL_MAX_GB} GiB)"
+  if (( WAL_GIB >= WAL_MAX_GB )); then
+    log "WAL exceeds threshold. Stopping Prometheus and truncating WAL."
+    docker stop "$PROM_CONTAINER" >/dev/null 2>&1 || true
+    rm -rf "$WAL_DIR"/* 2>/dev/null || true
+    docker start "$PROM_CONTAINER" >/dev/null 2>&1 || true
+    log "WAL truncated."
+  fi
+fi
+
 log "Listing TSDB blocks via promtool..."
-PROMTOOL_OUT="$(docker run --rm -v "${PROM_DIR}":/prom --entrypoint /bin/promtool "${PROM_IMAGE}" tsdb list /prom 2>/dev/null || true)"
+set +e
+PROMTOOL_OUT="$(docker run --rm -v "$PROM_DIR":/prom --entrypoint /bin/promtool "$PROM_IMAGE" tsdb list /prom 2>&1)"
+rc=$?
+set -e
 
-if [[ -z "${PROMTOOL_OUT}" ]]; then
-  log "WARNING: promtool returned no output. Aborting cleanup."
+if (( rc != 0 )) || [[ -z "${PROMTOOL_OUT:-}" ]]; then
+  log "ERROR: promtool failed or returned no output (rc=$rc). Output follows:"
+  echo "$PROMTOOL_OUT" | sed 's/^/  /' | tee -a "$LOG_FILE"
+  USED_NOW="$(get_used_pct || echo 0)"
+  log "Root usage now: ${USED_NOW}%"
+  if [[ "$EMERGENCY_RESET" == "1" ]] && [[ "$USED_NOW" =~ ^[0-9]+$ ]] && (( USED_NOW >= DISK_CRIT_PERCENT )); then
+    log "EMERGENCY_RESET enabled and disk critical. WIPING TSDB contents in $PROM_DIR"
+    docker stop "$PROM_CONTAINER" >/dev/null 2>&1 || true
+    rm -rf "$PROM_DIR"/* 2>/dev/null || true
+    docker start "$PROM_CONTAINER" >/dev/null 2>&1 || true
+    log "Emergency TSDB wipe done."
+  else
+    log "No destructive action taken (EMERGENCY_RESET=0 by default)."
+  fi
+  log "===== END (promtool failed) ====="
   exit 0
 fi
 
-# Print header
-echo "$PROMTOOL_OUT" | head -n1 | sed 's/^/  /'
+# Log header + a sample
+echo "$PROMTOOL_OUT" | head -n 1 | sed 's/^/  /' | tee -a "$LOG_FILE"
+echo "$PROMTOOL_OUT" | tail -n +2 | head -n 10 | sed 's/^/  /' | tee -a "$LOG_FILE"
 
-# Parse candidate ULIDs where duration > threshold hours
-# promtool columns: ULID  MIN  MAX  DURATION  ...
-# Convert full duration (e.g., "53h59m59.975s") to total hours for accurate comparison
+if [[ "$DELETE_BLOCKS" != "1" ]]; then
+  log "DELETE_BLOCKS=0. Diagnostics + WAL mitigation only."
+  log "===== END ====="
+  exit 0
+fi
+
+# Compute cutoff epoch millis
+CUTOFF_MS="$(awk -v days="$KEEP_DAYS" 'BEGIN { print int((systime() - (days*86400)) * 1000) }')"
+log "Deleting blocks with MAX TIME < cutoff (KEEP_DAYS=${KEEP_DAYS}, cutoff_ms=${CUTOFF_MS})."
+
 DELETE_ULIDS=()
 while IFS= read -r line; do
   [[ -z "$line" ]] && continue
-  # Skip header line
   [[ "$line" =~ ^BLOCK ]] && continue
-  
-  # Extract ULID (first column) and DURATION (4th column)
-  ulid=$(echo "$line" | awk '{print $1}')
-  duration=$(echo "$line" | awk '{print $4}')
-  
-  # Skip if ULID doesn't look valid (should start with 01)
+  ulid="$(echo "$line" | awk '{print $1}')"
+  max_ms="$(echo "$line" | awk '{print $3}')"
   [[ ! "$ulid" =~ ^01 ]] && continue
-  
-  # Convert duration to total hours
-  total_hours=$(duration_to_hours "$duration")
-  
-  # Compare with threshold (using awk for floating point comparison)
-  if (( $(awk -v th="$total_hours" -v thr="${DURATION_HOURS_THRESHOLD}" 'BEGIN { print (th > thr) }') )); then
+  [[ ! "$max_ms" =~ ^[0-9]+$ ]] && continue
+  if (( max_ms < CUTOFF_MS )); then
     DELETE_ULIDS+=("$ulid")
   fi
 done < <(echo "$PROMTOOL_OUT" | tail -n +2)
 
 if (( ${#DELETE_ULIDS[@]} == 0 )); then
-  log "No blocks exceed ${DURATION_HOURS_THRESHOLD}h. Nothing to delete."
+  log "No blocks older than ${KEEP_DAYS} days found. Nothing to delete."
+  log "===== END ====="
   exit 0
 fi
 
-log "Blocks to delete (> ${DURATION_HOURS_THRESHOLD}h):"
-for u in "${DELETE_ULIDS[@]}"; do
-  # Show line for each ULID
-  echo "$PROMTOOL_OUT" | awk -v id="$u" 'NR==1 || $1==id' | sed 's/^/  /'
-done
+log "Blocks to delete (count=${#DELETE_ULIDS[@]}): ${DELETE_ULIDS[*]}"
+log "Stopping Prometheus: $PROM_CONTAINER"
+docker stop "$PROM_CONTAINER" >/dev/null 2>&1 || true
 
-# --- Stop Prometheus, delete blocks, clean WAL if needed ---
-CONTAINER_WAS_RUNNING=false
-if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${PROM_CONTAINER}$"; then
-  CONTAINER_WAS_RUNNING=true
-  log "Stopping container: ${PROM_CONTAINER}"
-  docker stop "${PROM_CONTAINER}" >/dev/null 2>&1 || {
-    log "WARNING: Failed to stop container. Continuing anyway..."
-  }
-fi
-
-DELETE_COUNT=0
-TOTAL_SIZE_FREED=0
 for u in "${DELETE_ULIDS[@]}"; do
-  blk="${PROM_DIR}/${u}"
+  blk="$PROM_DIR/$u"
   if [[ -d "$blk" ]]; then
-    if [[ "$DRY_RUN" == "1" ]]; then
-      block_size=$(sudo du -sh "$blk" 2>/dev/null | awk '{print $1}' || echo "unknown")
-      log "DRY RUN: Would delete block $blk (size: $block_size)"
-    else
-      block_size=$(sudo du -sb "$blk" 2>/dev/null | awk '{print $1}' || echo "0")
-      log "Deleting block $blk"
-      if sudo rm -rf "$blk" 2>/dev/null; then
-        ((DELETE_COUNT++))
-        TOTAL_SIZE_FREED=$((TOTAL_SIZE_FREED + block_size))
-      else
-        log "WARNING: Failed to delete block $blk"
-      fi
-    fi
-  else
-    log "WARNING: Block directory not found: $blk"
+    sz="$(du -sh "$blk" 2>/dev/null | awk '{print $1}' || echo "N/A")"
+    log "Deleting block $u (size=$sz)"
+    rm -rf "$blk" 2>/dev/null || log "WARNING: Failed to delete $blk"
   fi
 done
 
-# Clean WAL only if we actually deleted something (and not in DRY RUN)
-if (( DELETE_COUNT > 0 )) && [[ "$DRY_RUN" != "1" ]]; then
-  if [[ -d "${PROM_DIR}/wal" ]]; then
-    log "Cleaning WAL..."
-    sudo rm -rf "${PROM_DIR}/wal/"* 2>/dev/null || log "WARNING: Failed to clean WAL"
-  fi
-fi
-
-# Restart container if it was running
-if [[ "$CONTAINER_WAS_RUNNING" == "true" ]]; then
-  log "Starting container: ${PROM_CONTAINER}"
-  docker start "${PROM_CONTAINER}" >/dev/null 2>&1 || {
-    log "ERROR: Failed to start container ${PROM_CONTAINER}"
-    exit 1
-  }
-fi
-
-if (( DELETE_COUNT > 0 )); then
-  if [[ "$DRY_RUN" != "1" ]]; then
-    # Convert bytes to human-readable format
-    if command -v numfmt >/dev/null 2>&1; then
-      size_freed_human=$(numfmt --to=iec-i --suffix=B "$TOTAL_SIZE_FREED" 2>/dev/null || echo "${TOTAL_SIZE_FREED} bytes")
-    else
-      # Fallback: use awk for conversion
-      size_freed_human=$(awk -v bytes="$TOTAL_SIZE_FREED" '
-        BEGIN {
-          if (bytes >= 1099511627776) printf "%.2fTiB", bytes/1099511627776
-          else if (bytes >= 1073741824) printf "%.2fGiB", bytes/1073741824
-          else if (bytes >= 1048576) printf "%.2fMiB", bytes/1048576
-          else if (bytes >= 1024) printf "%.2fKiB", bytes/1024
-          else printf "%d bytes", bytes
-        }')
-    fi
-    log "Deleted $DELETE_COUNT block(s), freed approximately $size_freed_human"
-  fi
-fi
+log "Starting Prometheus: $PROM_CONTAINER"
+docker start "$PROM_CONTAINER" >/dev/null 2>&1 || true
 
 log "Final TSDB size:"
-sudo du -sh "${PROM_DIR}" 2>/dev/null | sed 's/^/  /'
-sudo du -sh "${PROM_DIR}"/* 2>/dev/null | sort -hr | head | sed 's/^/  /'
+du -sh "$PROM_DIR" 2>/dev/null | sed 's/^/  /' | tee -a "$LOG_FILE"
 
-log "Done."
-
+log "===== END ====="
