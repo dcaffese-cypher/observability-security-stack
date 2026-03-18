@@ -1,0 +1,125 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  namespace: {{ include "otel-collector.namespace" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "otel-collector.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  otelcol.yaml: |
+    receivers:
+      filelog/k8s:
+        include:
+          - /var/log/pods/*/*/*.log
+          - /var/log/containers/*.log
+        start_at: beginning
+        include_file_path: true
+        operators:
+          # Match any line so attributes.log always exists; avoids "move: field does not exist" and dropped logs
+          - type: regex_parser
+            regex: '^(?P<log>.*)$'
+            parse_from: body
+          - type: move
+            from: attributes.log
+            to: body
+
+      kubeletstats:
+        collection_interval: 30s
+        auth_type: serviceAccount
+        endpoint: https://${env:K8S_NODE_NAME}:10250
+        insecure_skip_verify: true
+        metric_groups: [node, pod, container]
+
+    processors:
+      # Copy log path from log attributes to resource so k8sattributes can associate pod/namespace
+      transform/copy_path:
+        log_statements:
+          - context: log
+            statements:
+              - set(resource.attributes["log.file.path"], attributes["log.file.path"]) where attributes["log.file.path"] != nil
+      # Parse /var/log/containers/pod_namespace_container-id.log to set k8s.namespace.name, k8s.pod.name, k8s.container.name. Only run when path contains "containers/" so pods-path logs are not touched (avoid nil errors).
+      transform/parse_container_path:
+        log_statements:
+          - context: log
+            statements:
+              - set(attributes["_fn"], attributes["log.file.path"]) where IsMatch(attributes["log.file.path"], "containers/")
+              - replace_pattern(attributes["_fn"], "^.{20}", "") where attributes["_fn"] != nil
+              - set(attributes["_ns"], attributes["_fn"]) where attributes["_fn"] != nil
+              - replace_pattern(attributes["_ns"], "^[^_]+_", "") where attributes["_ns"] != nil
+              - replace_pattern(attributes["_ns"], "_.*", "") where attributes["_ns"] != nil
+              - set(resource.attributes["k8s.namespace.name"], attributes["_ns"]) where attributes["_ns"] != nil and attributes["_ns"] != ""
+              - set(attributes["_pod"], attributes["_fn"]) where attributes["_fn"] != nil
+              - replace_pattern(attributes["_pod"], "_.*", "") where attributes["_pod"] != nil
+              - set(resource.attributes["k8s.pod.name"], attributes["_pod"]) where attributes["_pod"] != nil and attributes["_pod"] != ""
+              - set(attributes["_cont"], attributes["_fn"]) where attributes["_fn"] != nil
+              - replace_pattern(attributes["_cont"], "^[^_]+_[^_]+_", "") where attributes["_cont"] != nil
+              - replace_pattern(attributes["_cont"], "\\.log$", "") where attributes["_cont"] != nil
+              - set(resource.attributes["k8s.container.name"], attributes["_cont"]) where attributes["_cont"] != nil and attributes["_cont"] != ""
+      k8sattributes:
+        auth_type: serviceAccount
+        passthrough: false
+        extract:
+          metadata:
+            - k8s.namespace.name
+            - k8s.pod.name
+            - k8s.container.name
+            - k8s.node.name
+        pod_association:
+          - sources:
+              - from: resource_attribute
+                name: log.file.path
+          - sources:
+              - from: resource_attribute
+                name: k8s.pod.ip
+
+      resource/tags:
+        attributes:
+          - action: upsert
+            key: customer
+            value: "{{ .Values.customer }}"
+          - action: upsert
+            key: environment
+            value: "{{ .Values.environment }}"
+          - action: upsert
+            key: country
+            value: "{{ .Values.country }}"
+          - action: upsert
+            key: source
+            value: "otelcol-k8s"
+          - action: upsert
+            key: service.name
+            value: "{{ .Values.serviceName }}"
+          - action: upsert
+            key: cluster
+            value: "{{ .Values.cluster | default .Values.serviceName }}"
+{{- if .Values.team }}
+          - action: upsert
+            key: team
+            value: "{{ .Values.team }}"
+{{- end }}
+{{- if .Values.site }}
+          - action: upsert
+            key: site
+            value: "{{ .Values.site }}"
+{{- end }}
+
+      batch: {}
+
+    exporters:
+      otlphttp/master:
+        endpoint: "{{ .Values.masterOtlpHttp }}"
+        compression: gzip
+        tls:
+          insecure: true
+
+    service:
+      pipelines:
+        logs:
+          receivers: [filelog/k8s]
+          processors: [transform/copy_path, transform/parse_container_path, k8sattributes, resource/tags, batch]
+          exporters: [otlphttp/master]
+        metrics:
+          receivers: [kubeletstats]
+          processors: [k8sattributes, resource/tags, batch]
+          exporters: [otlphttp/master]

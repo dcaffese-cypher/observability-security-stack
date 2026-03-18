@@ -1,0 +1,14 @@
+apiVersion: v2
+name: otel-collector
+description: OpenTelemetry Collector DaemonSet for Kubernetes (metrics + logs to central OTLP master)
+type: application
+version: 0.1.0
+appVersion: "0.131.0"
+keywords:
+  - observability
+  - opentelemetry
+  - otel
+  - logging
+  - metrics
+maintainers:
+  - name: Observability maintainers

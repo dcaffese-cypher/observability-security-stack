@@ -1,0 +1,14 @@
+{{- if and .Values.otelCollector.enabled (gt (int (.Values.otelCollector.replicas | default 2)) 1) }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: otel-collector
+  namespace: {{ .Values.namespace | default "observability" }}
+  labels:
+    app: otel-collector
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: otel-collector
+{{- end }}

@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards-provider
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: observability-central
+data:
+  dashboards.yml: |
+{{ printf "%s" (.Files.Get "config/grafana/provisioning/dashboards/dashboards.yml") | indent 4 }}

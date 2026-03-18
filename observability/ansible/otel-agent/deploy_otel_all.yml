@@ -1,0 +1,13 @@
+# Deploy OTel everywhere: agents (hosts) + Kubernetes clusters.
+# Same idea as "if Docker then add docker_stats" — one entry point:
+#   - agents (inventory [agents]) → binary + systemd on each host
+#   - k8s_clusters (inventory [k8s_clusters]) → DaemonSet on each cluster
+#
+# Usage:
+#   ansible-playbook -i inventory.ini deploy_otel_all.yml
+#
+- name: Deploy OTel agent to Linux hosts (with optional Docker detection)
+  import_playbook: deploy_otel_agent.yml
+
+- name: Deploy OTel DaemonSet to Kubernetes clusters
+  import_playbook: deploy_otel_k8s.yml

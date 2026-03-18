@@ -1,0 +1,12 @@
+dependencies:
+- name: kube-prometheus-stack
+  repository: https://prometheus-community.github.io/helm-charts
+  version: 75.5.0
+- name: loki
+  repository: https://grafana.github.io/helm-charts
+  version: 6.32.0
+- name: victoria-metrics-single
+  repository: https://victoriametrics.github.io/helm-charts/
+  version: 0.32.0
+digest: sha256:fa889e10fbf3466971124341a4c3927bc45b94d5403beeeb0a4335dae342167a
+generated: "2026-03-16T12:23:14.242758617Z"

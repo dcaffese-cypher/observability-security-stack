@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-alerting
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: observability-central
+data:
+  {{- $open := printf "%c%c" 123 123 }}
+  {{- $close := printf "%c%c" 125 125 }}
+  rules.yml: |
+{{ printf "%s" (.Files.Get "config/grafana/provisioning/alerting/rules.yml") | replace "{{" $open | replace "}}" $close | indent 4 }}
+  network-switches-simple.yml: |
+{{ printf "%s" (.Files.Get "config/grafana/provisioning/alerting/network-switches-simple.yml") | replace "{{" $open | replace "}}" $close | indent 4 }}
+  contactpoints.yml: |
+{{ printf "%s" (.Files.Get "config/grafana/provisioning/alerting/contactpoints.yml") | indent 4 }}
+  # notification-templates.yml omitted: format causes "invalidFormat" in Grafana 12; add back when template format is updated

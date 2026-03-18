@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards-json
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: observability-central
+data:
+{{- range .Values.customGrafana.dashboardFiles }}
+  {{ . | replace " " "-" | replace "&" "and" | replace "–" "-" | quote }}: |
+{{ printf "%s" ($.Files.Get (printf "config/grafana/provisioning/dashboards/json/%s" .)) | replace "{{" "{{`{{`}}" | replace "}}" "{{`}}`}}" | nindent 4 }}
+{{- end }}

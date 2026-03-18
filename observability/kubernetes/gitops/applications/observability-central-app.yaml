@@ -1,0 +1,33 @@
+# Merged ArgoCD Application: the former 4 Applications (prometheus, loki, victoria-metrics, otel-collector)
+# are merged into this single Application. One Helm chart (observability-central) = one Application = one instantiation.
+# Install alongside other app definitions in k8s-infra at the point of install.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: observability-central
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: observability
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: admin
+  source:
+    repoURL: https://github.com/YOUR_ORG/YOUR_OBSERVABILITY_REPO.git
+    targetRevision: HEAD
+    path: observability/kubernetes/charts/observability-central
+    helm:
+      releaseName: observability-central
+      version: v3
+      # Optional: override values here; otherwise chart values.yaml is used.
+  destination:
+    name: in-cluster
+    namespace: observability
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=true
+    automated:
+      prune: false
+      selfHeal: true

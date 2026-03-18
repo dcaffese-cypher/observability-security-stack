@@ -1,0 +1,35 @@
+# Deploy OTel Collector DaemonSet to every K8s cluster via Helm (chart in charts/observability-edge).
+# Run from the same place as deploy_otel_agent.yml; uses kubeconfig per cluster.
+# Requires: Helm 3, ansible-galaxy collection install community.kubernetes
+#
+# Usage:
+#   ansible-playbook -i inventory.ini deploy_otel_k8s.yml
+#   ansible-playbook -i inventory.ini deploy_otel_k8s.yml --limit cluster-prod-01
+#
+- name: Deploy OTel DaemonSet to Kubernetes clusters (Helm)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  when: (groups['k8s_clusters'] | default([])) | length > 0
+  vars:
+    clusters: "{{ groups['k8s_clusters'] | default([]) }}"
+    # Path to observability-edge Helm chart (see observability/kubernetes/charts).
+    helm_chart_path: "{{ playbook_dir }}/../../kubernetes/charts/observability-edge"
+  tasks:
+    - name: Deploy OTel to cluster {{ cluster_host }}
+      include_tasks: tasks/deploy_otel_k8s_cluster.yml
+      loop: "{{ clusters }}"
+      loop_control:
+        loop_var: cluster_host
+      vars:
+        kubeconfig: "{{ hostvars[cluster_host].kubeconfig | default('') }}"
+        helm_chart_path: "{{ hostvars[cluster_host].helm_chart_path | default(helm_chart_path) }}"
+        master_otlp_http: "{{ hostvars[cluster_host].master_otlp_http | default('https://otel.yourdomain.tld') }}"
+        customer: "{{ hostvars[cluster_host].customer | default('YOUR_ORG') }}"
+        environment: "{{ hostvars[cluster_host].environment | default('YOUR_ENV') }}"
+        country: "{{ hostvars[cluster_host].country | default('YOUR_COUNTRY') }}"
+        service_name: "{{ hostvars[cluster_host].service_name | default('k8s-cluster') }}"
+        cluster: "{{ hostvars[cluster_host].cluster | default(hostvars[cluster_host].service_name | default('k8s-cluster')) }}"
+        team: "{{ hostvars[cluster_host].team | default('') }}"
+        site: "{{ hostvars[cluster_host].site | default('') }}"
+        otelcol_version: "{{ hostvars[cluster_host].otelcol_version | default('0.131.0') }}"

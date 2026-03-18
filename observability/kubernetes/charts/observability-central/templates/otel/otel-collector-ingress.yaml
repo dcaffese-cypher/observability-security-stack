@@ -1,0 +1,31 @@
+{{- if and .Values.otelCollector.enabled .Values.otelCollector.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: otel-collector
+  namespace: {{ .Values.namespace | default "observability" }}
+  labels:
+    app: otel-collector
+  annotations:
+    # OTLP HTTP on 443; adjust for your ingress (e.g. APISIX uses ApisixRoute/ApisixTls)
+    kubernetes.io/ingress.class: {{ .Values.otelCollector.ingress.className | default "apisix" }}
+spec:
+  ingressClassName: {{ .Values.otelCollector.ingress.className | default "apisix" }}
+  rules:
+    - host: {{ .Values.otelCollector.ingress.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: otel-collector
+                port:
+                  number: 4318
+  {{- if .Values.otelCollector.ingress.tls }}
+  tls:
+    - hosts:
+        - {{ .Values.otelCollector.ingress.host }}
+      secretName: {{ .Values.otelCollector.ingress.tlsSecretName | default "otel-collector-tls" }}
+  {{- end }}
+{{- end }}

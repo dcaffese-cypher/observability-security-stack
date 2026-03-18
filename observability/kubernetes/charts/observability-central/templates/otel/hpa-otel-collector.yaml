@@ -1,0 +1,23 @@
+{{- if and .Values.otelCollector.enabled (.Values.otelCollector.hpa.enabled | default false) }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: otel-collector
+  namespace: {{ .Values.namespace | default "observability" }}
+  labels:
+    app: otel-collector
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: otel-collector
+  minReplicas: {{ .Values.otelCollector.hpa.minReplicas | default 2 }}
+  maxReplicas: {{ .Values.otelCollector.hpa.maxReplicas | default 5 }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.otelCollector.hpa.targetCPUUtilizationPercentage | default 70 }}
+{{- end }}

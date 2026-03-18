@@ -1,0 +1,33 @@
+# Certificates and TLS for OTel Collector. Do NOT manage via ArgoCD (causes permanent out-of-sync).
+# Apply from k8s-infra at the point of install, e.g. kubectl apply -f otel-collector-ingress-tls-apisix.yaml
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: otel-collector-observability-cert
+  namespace: observability
+spec:
+  dnsNames:
+    - otel.yourdomain.tld
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-issuer
+  secretName: otel-collector-tls
+  usages:
+    - digital signature
+    - key encipherment
+  renewBefore: 720h
+  duration: 2160h
+---
+apiVersion: apisix.apache.org/v2
+kind: ApisixTls
+metadata:
+  name: otel-collector-observability-tls
+  namespace: observability
+spec:
+  ingressClassName: apisix
+  hosts:
+    - otel.yourdomain.tld
+  secret:
+    name: otel-collector-tls
+    namespace: observability

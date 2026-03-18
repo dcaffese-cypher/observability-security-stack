@@ -1,0 +1,5 @@
+# Core Drilldown apps (Logs, Metrics, Traces, Profiles) are preinstalled in
+# Grafana 12.x; no explicit enable is needed here.  Keep this file so the
+# ConfigMap mount stays valid but leave the apps list empty.
+apiVersion: 1
+apps: []

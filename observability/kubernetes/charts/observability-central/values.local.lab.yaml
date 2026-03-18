@@ -1,0 +1,16 @@
+# ---------------------------------------------------------------------------
+# Lab / first install — no public DNS or TLS required.
+# Use with:  helm upgrade --install ... -f values.yaml -f values.local.lab.yaml
+# Access Grafana:  ./observability/scripts/port-forward-ui.sh
+# ---------------------------------------------------------------------------
+kube-prometheus-stack:
+  grafana:
+    ingress:
+      enabled: false
+
+otelCollector:
+  ingress:
+    enabled: false
+  replicas: 1
+  hpa:
+    enabled: false

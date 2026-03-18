@@ -1,0 +1,29 @@
+# ---------------------------------------------------------------------------
+# Copy to values.local.yaml (gitignored) and replace every YOUR_* value.
+# Deploy:  helm upgrade --install observability-central . -n observability \
+#   -f values.yaml -f values.local.yaml
+# Also: create TLS secrets + DNS for both hosts; adjust ingressClassName if not APISIX.
+# ---------------------------------------------------------------------------
+kube-prometheus-stack:
+  grafana:
+    ingress:
+      enabled: true
+      ingressClassName: YOUR_INGRESS_CLASS
+      hosts:
+        - grafana.YOUR_DOMAIN
+      tls:
+        - hosts:
+            - grafana.YOUR_DOMAIN
+          secretName: grafana-observability-tls
+    grafana.ini:
+      server:
+        domain: grafana.YOUR_DOMAIN
+        root_url: "https://grafana.YOUR_DOMAIN/"
+
+otelCollector:
+  ingress:
+    enabled: true
+    host: "otel.YOUR_DOMAIN"
+    className: "YOUR_INGRESS_CLASS"
+    tls: true
+    tlsSecretName: "otel-collector-tls"

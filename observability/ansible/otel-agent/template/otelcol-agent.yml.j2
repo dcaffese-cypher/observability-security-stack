@@ -1,0 +1,173 @@
+extensions:
+  host_observer: {}
+
+receivers:
+  hostmetrics:
+    root_path: {{ otel_root_path | default('/') }}
+    collection_interval: 15s
+    scrapers:
+      cpu: {}
+      memory: {}
+      disk: {}
+      filesystem:
+        exclude_mount_points:
+          match_type: regexp
+          mount_points:
+            - ^/snap($|/).*
+            - ^/boot($|/).*
+            - ^/boot/efi($|/).*
+        exclude_fs_types:
+          match_type: strict
+          fs_types: [squashfs, overlay, tmpfs, devtmpfs, proc, sysfs, devpts, cgroup2]
+      network: {}
+      load: {}
+      paging: {}
+      processes: {}
+
+  # System logs (always present)
+  filelog/sys:
+    include: [ /var/log/syslog, /var/log/messages, /var/log/*.log ]
+    start_at: beginning
+    include_file_path: true
+
+  journald:
+    units: ["*"]
+
+{% if docker_installed | default(false) %}
+  # Docker metrics (only when Docker is installed)
+  docker_stats:
+    collection_interval: 15s
+    endpoint: unix:///var/run/docker.sock
+
+  # Docker container logs (only when Docker is installed)
+  filelog/containers:
+    include:
+      - /var/lib/docker/containers/*/*-json.log
+    start_at: beginning
+    include_file_path: true
+    operators:
+      # 1) Parse Docker JSON log line {"log","stream","time",...}
+      - type: json_parser
+        parse_from: body
+        # Flexible timestamp parsing (accepts 1–9 fractional digits)
+        timestamp:
+          parse_from: attributes.time
+          layout_type: strptime
+          layout: '%Y-%m-%dT%H:%M:%S.%fZ'
+          location: UTC
+        severity:
+          parse_from: attributes.stream
+      # 2) Move 'log' field to body (actual message)
+      - type: move
+        from: attributes.log
+        to: body
+      # 3) Cleanup: remove raw attributes if not needed
+      - type: remove
+        field: attributes
+{% endif %}
+
+  otlp:
+    protocols:
+      grpc: {}
+      http: {}
+
+processors:
+  # Detects host.name, os.type, etc.
+  resourcedetection:
+    detectors: [system]
+    override: true
+
+  # service.name is the server hostname
+  resource/service:
+    attributes:
+      - action: upsert
+        key: service.name
+        value: "{{ ansible_hostname | default(inventory_hostname) }}"
+
+  resource/tags:
+    attributes:
+      - action: upsert
+        key: customer
+        value: "{{ customer | default(hostvars[inventory_hostname].customer | default('')) }}"
+      - action: upsert
+        key: environment
+        value: "{{ environment | default(hostvars[inventory_hostname].environment | default('')) }}"
+      - action: upsert
+        key: country
+        value: "{{ country | default(hostvars[inventory_hostname].country | default('')) }}"
+{% if team is defined and team | length > 0 %}
+      - action: upsert
+        key: team
+        value: "{{ team }}"
+{% endif %}
+{% if site is defined and site | length > 0 %}
+      - action: upsert
+        key: site
+        value: "{{ site }}"
+{% endif %}
+{% if cluster is defined and cluster | length > 0 %}
+      - action: upsert
+        key: cluster
+        value: "{{ cluster }}"
+{% endif %}
+{% if service is defined and service | length > 0 %}
+      - action: upsert
+        key: service
+        value: "{{ service }}"
+{% endif %}
+
+  # Loki / resource attributes for log labels
+  resource/loki_labels:
+    attributes:
+      - action: upsert
+        key: host
+        value: "{{ ansible_hostname | default(inventory_hostname) }}"
+      - action: upsert
+        key: source
+        value: "otelcol"
+
+  batch: {}
+
+exporters:
+  otlphttp:
+    endpoint: "{{ master_otlp_http }}"
+    compression: gzip
+    tls: { insecure: true }
+    retry_on_failure: { enabled: true }
+
+  otlp:
+    endpoint: "{{ master_otlp_grpc }}"
+    tls: { insecure: true }
+    compression: gzip
+    retry_on_failure: { enabled: true }
+
+
+service:
+  extensions: [host_observer]
+  telemetry:
+    logs: { level: {% if docker_installed | default(false) %}warn{% else %}info{% endif %} }
+    metrics:
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: "0.0.0.0"
+                port: 8888
+
+  pipelines:
+    metrics:
+      receivers: [hostmetrics{% if docker_installed | default(false) %}, docker_stats{% endif %}]
+      processors: [resourcedetection, resource/service, resource/tags, batch]
+      exporters: [otlphttp]
+
+    logs:
+      receivers: [filelog/sys, journald{% if docker_installed | default(false) %}, filelog/containers{% endif %}, otlp]
+      processors: [resourcedetection, resource/service, resource/tags, resource/loki_labels, batch]
+      exporters: [otlphttp]
+
+{% if enable_traces | default(false) %}
+    traces:
+      receivers: [otlp]
+      processors: [resourcedetection, resource/service, resource/tags, batch]
+      exporters: [otlphttp]
+{% endif %}

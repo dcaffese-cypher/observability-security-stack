@@ -1,0 +1,88 @@
+{{- if .Values.otelCollector.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  namespace: {{ .Values.namespace | default "observability" }}
+  labels:
+    app: otel-collector
+spec:
+  replicas: {{ .Values.otelCollector.replicas | default 2 }}
+  selector:
+    matchLabels:
+      app: otel-collector
+  template:
+    metadata:
+      labels:
+        app: otel-collector
+    spec:
+      # Prefer spreading OTel pods across nodes (soft anti-affinity).
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: otel-collector
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: otel-collector
+          image: "{{ .Values.otelCollector.image.repository }}:{{ .Values.otelCollector.image.tag }}"
+          args: ["--config=/etc/otel/config.yaml"]
+          {{- with .Values.otelCollector.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - containerPort: 4317
+              name: otlp-grpc
+            - containerPort: 4318
+              name: otlp-http
+            - containerPort: 13133
+              name: health
+            - containerPort: 8888
+              name: metrics
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otel
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: 13133
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: config
+          configMap:
+            name: otel-collector-config
+            items:
+              - key: config.yaml
+                path: config.yaml
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  namespace: {{ .Values.namespace | default "observability" }}
+  labels:
+    app: otel-collector
+spec:
+  type: {{ .Values.otelCollector.service.type | default "ClusterIP" }}
+  ports:
+    - port: 4317
+      targetPort: 4317
+      name: otlp-grpc
+    - port: 4318
+      targetPort: 4318
+      name: otlp-http
+    - port: 13133
+      targetPort: 13133
+      name: health
+    - port: 8888
+      targetPort: 8888
+      name: metrics
+  selector:
+    app: otel-collector
+{{- end }}

@@ -1,0 +1,18 @@
+# ---------------------------------------------------------------------------
+# Central observability (Assembly): OTel gateway receives from agents; backend is Victoria Metrics.
+# Cloud team only needs the OTLP endpoint. They do NOT need Victoria Metrics or Prometheus.
+# ---------------------------------------------------------------------------
+
+# OTLP endpoint: what to give Cloud (and what agents use). Agents send metrics/logs here.
+# When Assembly exposes the OTel gateway via HTTPS, use that URL (e.g. https://otel.assembly.example.com:443).
+# Internal NodePort example: http://YOUR_K8S_NODE_IP:NODEPORT_HTTP (OTLP HTTP), gRPC on NODEPORT_GRPC.
+otel_endpoint_http: "https://otel.yourdomain.tld"
+otel_endpoint_grpc: "otel.yourdomain.tld:443"
+
+# Internal only (Assembly): Victoria Metrics is the backend after the gateway. Do NOT give these to Cloud.
+# Used for: Grafana datasource, internal docs.
+victoria_metrics_write_endpoint: "http://observability-central-victoria-metrics-single.observability.svc:8428/api/v1/write"
+victoria_metrics_query_endpoint: "http://observability-central-victoria-metrics-single.observability.svc:8428"
+
+# Recommended labels (set in inventory): environment, cluster, team, site, service.
+# Agent template and Helm chart add these as resource attributes when defined.

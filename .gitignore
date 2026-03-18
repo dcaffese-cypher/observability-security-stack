@@ -1,0 +1,16 @@
+# Local secrets and overrides
+.env
+!.env.example
+**/inventory.local.ini
+**/*values.local.yaml
+**/kubeconfig*.conf
+*.pem
+*.key
+!**/testdata/**/*.pem
+
+# Editor / local tooling (optional for public repos)
+.cursor/
+
+# Runtime data (Docker Compose)
+**/loki-data/
+**/prometheus-data/

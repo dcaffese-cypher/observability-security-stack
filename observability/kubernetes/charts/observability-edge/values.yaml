@@ -1,0 +1,41 @@
+# Values for OTel Collector DaemonSet. Override per cluster (e.g. via ArgoCD Application values or Ansible).
+# Resource tags (customer/environment/country); master maps to CLIENT/ENVIRONMENT/COUNTRY for Loki/Prometheus.
+
+# Central OTLP HTTP endpoint (no trailing slash). In-cluster example below; override for remote gateway.
+# Remote VM/Docker gateway: https://otel.yourdomain.tld or http://YOUR_NODE_IP:NODEPORT
+masterOtlpHttp: "http://otel-collector.observability.svc.cluster.local:4318"
+
+# Resource tags; central collector maps these to Loki / Victoria Metrics labels.
+customer: "YOUR_ORG"
+environment: "YOUR_ENV"
+country: "YOUR_COUNTRY"
+serviceName: "k8s-cluster"
+# Optional: cluster name (defaults to serviceName), team, site
+cluster: ""
+team: ""
+site: ""
+
+# Collector image
+image:
+  repository: otel/opentelemetry-collector-contrib
+  tag: "0.131.0"
+  pullPolicy: IfNotPresent
+
+# DaemonSet / pod
+resources: {}
+  # limits:
+  #   memory: 512Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 256Mi
+
+# Optional: node selector / tolerations for DaemonSet
+nodeSelector: {}
+tolerations: []
+
+# Namespace to install into (created if not exists)
+namespace: otel
+
+# Release name (used as prefix when needed)
+nameOverride: ""
+fullnameOverride: ""

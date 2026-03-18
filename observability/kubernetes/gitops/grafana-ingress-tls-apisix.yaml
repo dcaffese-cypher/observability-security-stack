@@ -1,0 +1,33 @@
+# Certificates and TLS for Grafana. Do NOT manage via ArgoCD (causes permanent out-of-sync).
+# Apply from k8s-infra at the point of install, e.g. kubectl apply -f grafana-ingress-tls-apisix.yaml
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: grafana-observability-cert
+  namespace: observability
+spec:
+  dnsNames:
+    - grafana.yourdomain.tld
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-issuer
+  secretName: grafana-observability-tls
+  usages:
+    - digital signature
+    - key encipherment
+  renewBefore: 720h
+  duration: 2160h
+---
+apiVersion: apisix.apache.org/v2
+kind: ApisixTls
+metadata:
+  name: grafana-observability-tls
+  namespace: observability
+spec:
+  ingressClassName: apisix
+  hosts:
+    - grafana.yourdomain.tld
+  secret:
+    name: grafana-observability-tls
+    namespace: observability

@@ -1,0 +1,97 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+        cors:
+          allowed_origins: ["http://*"]
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+    path: /ready
+
+processors:
+  attributes/ensure-service-name:
+    actions:
+      - action: insert
+        key: service.name
+        from_attribute: host.name
+  batch:
+    send_batch_size: 500
+    timeout: 2s
+  # Smaller batches for logs to stay under Loki gRPC max message size (4 MiB); avoids "received message larger than max" and dropped logs.
+  batch/logs:
+    send_batch_size: 100
+    timeout: 2s
+  attributes/map-labels:
+    actions:
+      - action: upsert
+        key: CLIENT
+        from_attribute: customer
+      - action: upsert
+        key: ENVIRONMENT
+        from_attribute: environment
+      - action: upsert
+        key: COUNTRY
+        from_attribute: country
+      - action: upsert
+        key: SERVICE_NAME
+        from_attribute: service.name
+  attributes/copy-namespace:
+    actions:
+      - action: insert
+        key: namespace
+        from_attribute: k8s.namespace.name
+  attributes/loki-label-hint:
+    actions:
+      - action: upsert
+        key: loki.resource.labels
+        value: CLIENT,ENVIRONMENT,COUNTRY,SERVICE_NAME,namespace,k8s.namespace.name,k8s.pod.name,k8s.container.name
+  attributes/loki-attr-labels:
+    actions:
+      - action: upsert
+        key: loki.attribute.labels
+        value: log.file.path
+
+exporters:
+  # Victoria Metrics: backend for the new stack (Cloud agents → OTel gateway → VM → Grafana). Prometheus stays independent.
+  prometheusremotewrite/victoria-metrics:
+    endpoint: {{ .Values.otelCollector.victoriaMetricsWriteEndpoint | default "http://observability-central-victoria-metrics-single:8428/api/v1/write" }}
+    tls:
+      insecure: true
+  otlphttp/logs:
+    endpoint: http://observability-central-loki:3100/otlp
+    tls:
+      insecure: true
+    sending_queue:
+      enabled: true
+      num_consumers: 4
+      queue_size: 1000
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+
+service:
+  telemetry:
+    metrics:
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: "0.0.0.0"
+                port: 8888
+  extensions: [health_check]
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheusremotewrite/victoria-metrics]
+    logs:
+      receivers: [otlp]
+      processors: [attributes/ensure-service-name, attributes/map-labels, attributes/copy-namespace, attributes/loki-label-hint, attributes/loki-attr-labels, batch/logs]
+      exporters: [otlphttp/logs]

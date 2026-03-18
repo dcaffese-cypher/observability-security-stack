@@ -1,0 +1,32 @@
+# Deploy OTel DaemonSet to one K8s cluster via Helm. Called from deploy_otel_k8s.yml with loop_var: cluster_host.
+# Vars from include: cluster_host, kubeconfig, helm_chart_path, master_otlp_http, customer, environment, country, service_name, otelcol_version.
+
+- name: Deploy OTel to cluster {{ cluster_host }} via Helm
+  block:
+    - name: Install/upgrade OTel Collector Helm chart
+      community.kubernetes.helm:
+        release_name: otel-collector
+        release_namespace: otel
+        chart_ref: "{{ helm_chart_path }}"
+        release_state: present
+        create_namespace: true
+        release_values:
+          masterOtlpHttp: "{{ master_otlp_http }}"
+          customer: "{{ customer }}"
+          environment: "{{ environment }}"
+          country: "{{ country }}"
+          serviceName: "{{ service_name }}"
+          cluster: "{{ cluster | default(service_name) }}"
+          team: "{{ team | default('') }}"
+          site: "{{ site | default('') }}"
+          image:
+            tag: "{{ otelcol_version }}"
+      when: kubeconfig is defined and kubeconfig | length > 0
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+
+  rescue:
+    - name: Failed to deploy to cluster {{ cluster_host }}
+      debug:
+        msg: "Check kubeconfig, Helm, and connectivity for {{ cluster_host }}. Error may be above."
+      failed_when: false

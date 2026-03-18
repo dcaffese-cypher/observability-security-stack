@@ -1,0 +1,13 @@
+# Default contact point that does not require SMTP. Uses a webhook that accepts POST and returns 200
+# so alert notifications do not fail with "connection refused" (no local listener needed).
+apiVersion: 1
+contactPoints:
+  - orgId: 1
+    name: observability-default
+    receivers:
+      - uid: obsdefault
+        type: webhook
+        settings:
+          # Echo endpoint that returns 200; replace with internal URL or disable if you add a real notification target.
+          url: https://httpbin.org/post
+        name: observability-default

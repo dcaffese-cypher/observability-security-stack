@@ -1,0 +1,17 @@
+# Merge into prometheus.yml after: docker compose --profile snmp up -d
+# and a valid snmp/snmp.yml from github.com/prometheus/snmp_exporter (generator).
+#
+#  - job_name: cumulus-snmp-interfaces
+#    metrics_path: /snmp
+#    params:
+#      module: [if_mib]
+#      auth: [your_snmp_auth_name]
+#    static_configs:
+#      - targets: [YOUR_SWITCH_MGMT_IP_1, YOUR_SWITCH_MGMT_IP_2]
+#    relabel_configs:
+#      - source_labels: [__address__]
+#        target_label: __param_target
+#      - source_labels: [__param_target]
+#        target_label: instance
+#      - target_label: __address__
+#        replacement: snmp-exporter:9116

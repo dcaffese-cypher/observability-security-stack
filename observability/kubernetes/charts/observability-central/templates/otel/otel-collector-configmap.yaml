@@ -1,0 +1,12 @@
+{{- if .Values.otelCollector.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  namespace: {{ .Values.namespace | default "observability" }}
+  labels:
+    app: otel-collector
+data:
+  config.yaml: |
+{{ tpl (.Files.Get "config/otelcol-config.yaml") . | indent 4 }}
+{{- end }}
