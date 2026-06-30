@@ -20,7 +20,7 @@
 | Document | Purpose |
 |----------|---------|
 | **architecture/architecture-and-status-observability.md** | Architecture, risks, improvements, current status. |
-| **architecture/production-scalability.md** | Production scaling: Loki Distributed, Prometheus HA, OTel. |
+| **architecture/production-scalability.md** | Production scaling: Victoria Logs cluster, Prometheus HA, OTel. |
 | **architecture/security-observability-blueprint.md** | Security architecture (Falco, Trivy, Kyverno, roadmap). |
 
 ## Multi-Cluster

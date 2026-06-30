@@ -1,16 +1,53 @@
 # ---------------------------------------------------------------------------
-# Lab / first install — no public DNS or TLS required.
-# Use with:  helm upgrade --install ... -f values.yaml -f values.local.lab.yaml
-# Access Grafana:  ./observability/scripts/port-forward-ui.sh
+# Lab / first install — same stack as values.yaml (production template), with
+# only the overlays needed to run without DNS, Gateway API, GitHub OAuth, or S3.
+#
+# Use: helm upgrade --install ... -f values.yaml -f values.local.lab.yaml
+# Or:  ../../../scripts/helm-install-central.sh lab
+# Access Grafana: ../../../scripts/port-forward-ui.sh → http://localhost:3000
 # ---------------------------------------------------------------------------
+
+gatewayAPI:
+  enabled: false
+
+vmBackup:
+  enabled: false
+
+vmBackupCluster:
+  enabled: false
+
+# Cluster-mode VM is for large production; lab uses victoria-metrics-single only.
+victoria-metrics-cluster:
+  enabled: false
+
 kube-prometheus-stack:
   grafana:
     ingress:
       enabled: false
+    # Admin login via Secret grafana-admin only (no GitHub OAuth in lab).
+    envFromSecret: ""
+    grafana.ini:
+      auth.github:
+        enabled: false
+    persistence:
+      storageClassName: ""
+  prometheus:
+    prometheusSpec:
+      storageSpec:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: ""
 
-otelCollector:
-  ingress:
-    enabled: false
-  replicas: 1
-  hpa:
-    enabled: false
+victoria-metrics-single:
+  server:
+    persistentVolume:
+      storageClassName: ""
+
+victoria-logs-single:
+  server:
+    persistentVolume:
+      storageClassName: ""
+
+# OTel gateway: single replica for small clusters (base chart may use HPA in other overlays).
+otel-deploy:
+  replicaCount: 1

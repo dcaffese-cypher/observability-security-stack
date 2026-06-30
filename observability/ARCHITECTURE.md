@@ -2,16 +2,20 @@
 
 ## Overview
 
-This repository implements a **central observability plane** (Kubernetes) with **optional VM-based** Docker stacks (Proxmox / Linux VMs) and **Ansible-automated agents**. Telemetry flows over **OpenTelemetry Protocol (OTLP)** into a gateway, then to **Victoria Metrics** (metrics) and **Loki** (logs). **Prometheus** remains a first-class scrape engine; Grafana queries all backends.
+This repository implements a **central observability plane** (Kubernetes) with **optional VM-based** Docker stacks (Proxmox / Linux VMs) and **Ansible-automated agents**. Telemetry flows over **OpenTelemetry Protocol (OTLP)** into a gateway, then to **Victoria Metrics** (metrics) and **Victoria Logs** (logs) on Kubernetes. **Prometheus** scrapes targets independently; Grafana queries Prometheus, Victoria Metrics, and Victoria Logs.
+
+**Docker Compose path (`vm-docker/`):** uses **Loki** for logs instead of Victoria Logs—see [GETTING_STARTED.md](./GETTING_STARTED.md).
+
+**Clone and run:** Path A in GETTING_STARTED (`helm-install-central.sh lab`) applies the same `values.yaml` as production plus `values.local.lab.yaml` (no public DNS/OAuth/S3 required).
 
 ## Components
 
 | Component | Role |
 |-----------|------|
-| **OTel Collector (gateway)** | Ingests OTLP from cloud clusters, VMs, and K8s DaemonSets; routes metrics to VM, logs to Loki |
+| **OTel Collector (gateway)** | Ingests OTLP from cloud clusters, VMs, and K8s DaemonSets; routes metrics to VM, logs to Victoria Logs |
 | **Victoria Metrics** | Long-term metrics store for OTLP-derived series |
+| **Victoria Logs** | Log store for OTLP logs (Kubernetes chart) |
 | **Prometheus** | Scrapes Kubernetes, SNMP exporters, static targets |
-| **Loki** | Log aggregation |
 | **Grafana** | Dashboards, alerting, Explore / Drilldown |
 | **observability-edge** | Per-cluster DaemonSet collector |
 
@@ -27,7 +31,7 @@ flowchart LR
   subgraph central["Central cluster"]
     GW[OTel gateway]
     VMstore[(Victoria Metrics)]
-    Loki[(Loki)]
+    VL[(Victoria Logs)]
     Prom[(Prometheus)]
     Graf[Grafana]
   end
@@ -35,10 +39,10 @@ flowchart LR
   K8S --> GW
   CLOUD --> GW
   GW --> VMstore
-  GW --> Loki
+  GW --> VL
   Prom --> Graf
   VMstore --> Graf
-  Loki --> Graf
+  VL --> Graf
 ```
 
 ## VM / Proxmox vs cloud / OpenStack

@@ -32,7 +32,7 @@ EXTRA=()
 case "$MODE" in
   lab)
     EXTRA=(-f values.local.lab.yaml)
-    echo "Mode: LAB (ingress off — use port-forward for Grafana)"
+echo "Mode: LAB (values.yaml + values.local.lab.yaml — Gateway API/OAuth/S3 backup off)"
     ;;
   production|prod)
     if [[ ! -f values.local.yaml ]]; then

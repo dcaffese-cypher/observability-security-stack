@@ -1,74 +1,21 @@
 # Production scalability overrides (merge with values.yaml).
-# Deploy: helm upgrade --install observability-central . -n observability -f values.yaml -f values-production.yaml
-# See docs/architecture/production-scalability.md for references and migration notes.
+# Deploy:
+#   helm upgrade --install observability-central . -n observability \
+#     -f values.yaml -f values.local.yaml -f values-production.yaml
+# See docs/architecture/production-scalability.md.
 
-# --- Prometheus: HA (2 replicas)
 kube-prometheus-stack:
   prometheus:
     prometheusSpec:
       replicas: 2
 
-# --- Loki: Distributed (microservices) mode – production path (SimpleScalable is deprecated before Loki 4.0).
-# Ref: https://grafana.com/docs/loki/latest/setup/install/helm/install-microservices/
-loki:
-  deploymentMode: Distributed
-  # SingleBinary / SimpleScalable off
-  singleBinary:
-    replicas: 0
-  read:
-    replicas: 0
-  write:
-    replicas: 0
-  backend:
-    replicas: 0
-  # Distributed components (official microservices guide)
-  ingester:
-    replicas: 3
-  distributor:
-    replicas: 3
-    maxUnavailable: 2
-  querier:
-    replicas: 3
-    maxUnavailable: 2
-  queryFrontend:
-    replicas: 2
-    maxUnavailable: 1
-  queryScheduler:
-    replicas: 2
-  indexGateway:
-    replicas: 2
-    maxUnavailable: 1
-  compactor:
-    replicas: 1
-  bloomPlanner:
-    replicas: 0
-  bloomBuilder:
-    replicas: 0
-  bloomGateway:
-    replicas: 0
-  # Object storage required for Distributed (MinIO for dev/test; use S3/Azure/GCS in prod).
-  minio:
-    enabled: true
-  gateway:
-    enabled: true
-  # Storage and schema: S3 (MinIO when minio.enabled)
-  loki:
-    storage:
-      type: s3
-    schemaConfig:
-      configs:
-        - from: "2025-09-03"
-          store: tsdb
-          object_store: s3
-          schema: v13
-          index:
-            prefix: index_
-            period: 24h
+otel-deploy:
+  replicaCount: 2
 
-# --- OTel Collector: production scaling (HPA already in base values)
-otelCollector:
-  replicas: 2
-  hpa:
-    minReplicas: 2
-    maxReplicas: 10
-    targetCPUUtilizationPercentage: 70
+# Logs at scale: disable single and enable cluster; then override OTel
+# logs_endpoint and Grafana Victoria Logs datasource URL per comments in values.yaml
+# (victoria-logs-cluster section).
+# victoria-logs-single:
+#   enabled: false
+# victoria-logs-cluster:
+#   enabled: true

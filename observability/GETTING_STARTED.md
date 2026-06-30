@@ -1,191 +1,211 @@
 # Getting started (step by step)
 
-Follow this file if you are new to Helm/Kubernetes or Docker. **Experienced users** can skim and use [RUNBOOK.md](./RUNBOOK.md) only.
+This repository ships the **same central observability stack** we run in production: Prometheus (scrapes), **Victoria Metrics** (OTLP metrics), **Victoria Logs** (OTLP logs), **Grafana 12**, **OpenTelemetry Collector** (gateway + node DaemonSet), optional blackbox probes, vmbackup, and Gateway API routes. It is meant to be **cloned and deployed** with clear prerequisites—not a minimal demo chart.
+
+**New here?** Read [ARCHITECTURE.md](./ARCHITECTURE.md) for the data flow, then pick a path below.
 
 ---
 
 ## 0. Clone and check your tools
 
 ```bash
-git clone <your-fork-or-url> && cd <repo>
+git clone https://github.com/dcaffese-cypher/observability-security-stack.git
+cd observability-security-stack
 chmod +x observability/scripts/*.sh
 ./observability/scripts/check-prerequisites.sh
 ```
 
-If something is missing, install it using the links printed by the script, then run the check again.
+Install anything the script reports as missing, then run it again.
 
 ---
 
-## Choose your path
+## Which deployment am I using?
 
-| Path | Best when |
-|------|-----------|
-| **A — Kubernetes (lab)** | You have any Kubernetes cluster and want to try the central stack **without** DNS or TLS. |
-| **B — Kubernetes (production)** | You have DNS, TLS (e.g. cert-manager), and an ingress controller. |
-| **C — VM + Docker** | Single VM (e.g. Proxmox), Docker only, no Kubernetes. |
-| **D — Agents** | Central stack already running; you want metrics/logs from more Linux VMs. |
+| Path | Stack | Log backend | Best for |
+|------|--------|-------------|----------|
+| **A — K8s lab** | Helm `observability-central` | **Victoria Logs** | Try the full chart on any cluster (port-forward, no public DNS) |
+| **B — K8s production** | Same chart + `values.local.yaml` | **Victoria Logs** (single or cluster overlay) | HTTPS Grafana/OTel, Gateway API, GitHub OAuth, S3 backup |
+| **C — VM Docker** | `vm-docker/central-stack` | **Loki** | One Linux host, no Kubernetes |
+| **D — Agents** | Ansible / `observability-edge` | Sends OTLP to central gateway | Extra VMs or remote K8s clusters |
+
+**Important:** The Kubernetes chart does **not** deploy Loki. Loki is only in the **Docker Compose** path (C). On Kubernetes, logs go **OTel → Victoria Logs → Grafana** (Victoria Logs datasource plugin).
 
 ---
 
-## Path A — Kubernetes lab (no public URLs)
+## Path A — Kubernetes lab (recommended first run)
 
-**Goal:** Grafana + Prometheus + Loki + OTel running in namespace `observability`, access Grafana from your laptop via port-forward.
+**Goal:** Same components as production, reachable via port-forward—no domain, no Gateway API, no GitHub OAuth, no S3 backup jobs.
 
-### Step A1 — Grafana admin password (Secret)
+### A0 — Cluster sizing
+
+| Resource | Guidance |
+|----------|----------|
+| **Nodes** | 1 node with **≥ 8 GB RAM** and **4 CPUs** (more is better; many pods + PVCs). |
+| **Storage** | Default `StorageClass` with dynamic provisioning (`kubectl get storageclass`). Lab overlay uses the cluster default (`storageClassName: ""`). |
+| **CNI / DNS** | Standard cluster DNS; pods must reach Helm chart repos on the internet for `helm dependency update`. |
+
+### A1 — Grafana admin Secret
 
 ```bash
 ./observability/scripts/create-grafana-secret.sh
 ```
 
-Enter a password when prompted (remember it for login).
+Use password login at Grafana (`admin` + the password you set). Lab overlay disables GitHub OAuth so you do **not** need `grafana-secret` for Path A.
 
-### Step A2 — Install the chart (lab values)
+### A2 — Install
 
 ```bash
 ./observability/scripts/helm-install-central.sh lab
 ```
 
-This runs `helm dependency update` and installs with **ingress disabled** and a single OTel replica (lighter for small clusters).
+This applies `values.yaml` (production template) **plus** `values.local.lab.yaml`, which only turns off: Gateway API HTTPRoutes, vmbackup CronJobs, Victoria Metrics **cluster** mode, GitHub OAuth, and fixes PVCs to the default StorageClass.
 
-**First run can take several minutes** (image pulls).
+**First install often takes 10–20 minutes** (chart downloads + image pulls).
 
-### Step A3 — Open Grafana
-
-In a **second terminal**:
+### A3 — Open Grafana
 
 ```bash
 ./observability/scripts/port-forward-ui.sh
 ```
 
-Browser: **http://localhost:3000** — user `admin`, password = what you set in A1.
+Browser: **http://localhost:3000** — user `admin`, password from A1.
 
-### Step A4 — Sanity checks
+### A4 — Verify
 
 ```bash
 kubectl get pods -n observability
-kubectl get svc -n observability
+kubectl get pvc -n observability
 ```
 
-If a pod is `CrashLoopBackOff`, run:
+Expect Running: Grafana, Prometheus, node-exporter, kube-state-metrics, Victoria Metrics single, Victoria Logs single, OTel gateway (`otel-collector-central`), OTel DaemonSet pods, optional blackbox-exporter. **Failed Jobs** for vmbackup should **not** appear in lab (backup disabled).
+
+**Inside Grafana**
+
+- **Metrics:** Explore → **Victoria Metrics** or **Prometheus**
+- **Logs:** Explore → **Victoria Logs** (plugin `victoriametrics-logs-datasource`)
+
+**Send test OTLP (optional)**
 
 ```bash
-kubectl logs -n observability deploy/grafana -c grafana --tail=50
-kubectl describe pod -n observability <pod-name>
+kubectl port-forward -n observability svc/otel-collector-central 4318:4318
+# Use otel-cli or a small app sending to http://localhost:4318/v1/logs and /v1/metrics
 ```
 
-### Common lab issues
+### A5 — Common lab issues
 
-| Problem | What to do |
-|---------|------------|
-| `grafana-admin` Secret missing | Run `create-grafana-secret.sh` again. |
-| Helm dependency errors | Check internet access to Helm chart repos; re-run `helm dependency update` inside `observability/kubernetes/charts/observability-central`. |
-| Pending PVCs | Your cluster needs a default `StorageClass` or set `storageClassName` in a custom values file. |
-| Not enough CPU/memory | Use a bigger node or reduce replicas in a custom `values.local.yaml` (advanced). |
+| Symptom | Fix |
+|---------|-----|
+| PVC `Pending` | No default StorageClass → install one (e.g. local-path on k3d) or set `storageClassName` in a custom overlay. |
+| Grafana `CreateContainerConfigError` / missing secret | Run `create-grafana-secret.sh`; for **production** you also need `grafana-secret` (see chart `manifests/grafana-secret.example.yaml`). |
+| `helm dependency update` fails | Corporate proxy/firewall; check access to `prometheus-community.github.io` and `victoriametrics.github.io`. |
+| Pods OOMKilled | Bigger node or temporarily scale down: set `otel-deploy.replicaCount: 1` (lab already does). |
+| Blackbox targets down | Normal in lab: probes use placeholder `https://*.yourdomain.tld` until you set real URLs in `values.yaml`. |
 
 ---
 
-## Path B — Kubernetes production (real hostnames)
+## Path B — Kubernetes production
 
-**Goal:** HTTPS URLs like `https://grafana.example.com` and OTLP at `https://otel.example.com`.
+**Goal:** Match the production template: `values.yaml` + your `values.local.yaml` (Gateway API, real hostnames, StorageClass, OAuth, optional S3 backup).
 
-### Step B1 — DNS
+### B1 — Prerequisites checklist
 
-Create **A or CNAME** records:
+1. **DNS:** `grafana.<domain>` and `otel.<domain>` (or your chosen hosts in `gatewayAPI` values).
+2. **Gateway API:** Shared `Gateway` (e.g. Envoy Gateway) with HTTPS listeners; chart creates **HTTPRoutes** only—see `kubernetes/gitops/`.
+3. **TLS:** Certificates on the Gateway listeners (cert-manager or your process)—not committed to this repo.
+4. **Secrets:**
+   - `grafana-admin` — `create-grafana-secret.sh`
+   - `grafana-secret` — from `kubernetes/charts/observability-central/manifests/grafana-secret.example.yaml` (GitHub OAuth client).
+   - `s3-credentials` — if `vmBackup.enabled: true` (keys `key` and `secret`).
+5. **StorageClass:** Replace `YOUR_STORAGE_CLASS` in values (see `PLACEHOLDERS.md`).
+6. **SNMP / blackbox:** Optional; set real switch IPs and deploy `snmp-exporter` if you use Cumulus jobs.
 
-- `grafana.example.com` → your ingress external IP / LB  
-- `otel.example.com` → same (or separate LB per your design)
-
-### Step B2 — TLS secrets
-
-Adapt manifests under `observability/kubernetes/gitops/` (cert-manager + your ingress). **APISIX** examples are templates; if you use **NGINX Ingress**, change `ingressClassName` and annotations to match your cluster.
-
-### Step B3 — Helm values
+### B2 — Values
 
 ```bash
 cd observability/kubernetes/charts/observability-central
 cp values.local.production.example.yaml values.local.yaml
-# Edit values.local.yaml: replace YOUR_DOMAIN, YOUR_INGRESS_CLASS
+# Edit: YOUR_DOMAIN, YOUR_STORAGE_CLASS, YOUR_GITHUB_ORG, S3 endpoint/bucket, gateway parentRef if needed
 ```
 
-### Step B4 — Install
+Optional HA overlay:
 
 ```bash
-cd ../../../..   # back to repo root
-./observability/scripts/create-grafana-secret.sh   # if not done yet
+# After values.local.yaml is ready
+helm upgrade --install observability-central . -n observability --create-namespace \
+  -f values.yaml -f values.local.yaml -f values-production.yaml
+```
+
+Or use the script (expects `values.local.yaml`):
+
+```bash
+cd ../../../..
+./observability/scripts/create-grafana-secret.sh
 ./observability/scripts/helm-install-central.sh production
 ```
 
-### Step B5 — Point agents at OTLP
+### B3 — GitOps
 
-Set the same OTLP URL in:
+Apply `kubernetes/gitops/applications/observability-central-app.yaml` from your Argo CD repo; point `repoURL` and path `observability/kubernetes/charts/observability-central`. See `docs/operations/deployment/argocd-phase3-phase4-plan.md`.
 
-- `observability/ansible/otel-agent/inventory.ini` (or `inventory.local.ini`), **or**
-- `observability/kubernetes/charts/observability-edge` when installing edge collectors.
+### B4 — Agents
 
-See [PLACEHOLDERS.md](./PLACEHOLDERS.md).
+Set `https://otel.<your-domain>` in `ansible/otel-agent/inventory.local.ini` or deploy `observability-edge` on workload clusters. See `docs/multi-cluster/otel-endpoint-cloud-team.md`.
 
 ---
 
-## Path C — VM + Docker central stack
+## Path C — VM + Docker (Loki stack)
 
-**Goal:** Prometheus, Loki, Grafana, OTel on one Linux host with Docker.
+**Goal:** Prometheus + **Loki** + Grafana + OTel on one host—useful when you do not have Kubernetes.
 
 ```bash
 chmod +x observability/scripts/vm-docker-central-bootstrap.sh
 ./observability/scripts/vm-docker-central-bootstrap.sh
 ```
 
-Before or after: edit `observability/vm-docker/central-stack/docker-compose.yml` (Grafana `GF_SERVER_ROOT_URL`, SMTP or disable SMTP).
+Edit `observability/vm-docker/central-stack/docker-compose.yml` (Grafana URL, disable SMTP if not needed). Agents: `vm-docker/agent-edge/.env.example` → `.env`, point OTLP at the central host.
 
-**Agent on another VM:** copy `observability/vm-docker/agent-edge/.env.example` to `.env`, set `MASTER_OTLP_*` to your central host, then `docker compose up -d`.
-
-**SNMP:** optional — see `central-stack/snmp/README.md` and `docker compose --profile snmp up -d`.
+This path is **independent** of the Helm chart; logs use **Loki**, not Victoria Logs.
 
 ---
 
-## Path D — Ansible agents (many Linux servers)
+## Path D — Ansible agents (Linux VMs / remote K8s)
 
 ```bash
 ./observability/scripts/ansible-copy-inventory.sh
-```
-
-Edit `inventory.local.ini`, then:
-
-```bash
+# Edit inventory.local.ini — master_otlp_http=https://otel.yourdomain.tld
 cd observability/ansible/otel-agent
 ansible-playbook -i inventory.local.ini deploy_otel_agent.yml
 ```
 
-Requires SSH + Docker on target hosts. For Kubernetes DaemonSets on other clusters, see `deploy_otel_k8s.yml` in the same directory.
+For DaemonSets on other clusters: `deploy_otel_k8s.yml` and chart `observability-edge`.
 
 ---
 
-## What you still must configure yourself
+## What stays in `values.yaml` (production template)
 
-Nothing can be fully automated without your environment:
+Do not expect a “tiny” default chart. `values.yaml` includes mission Grafana orgs (bootstrap Job), multi-folder dashboards, alerting rules, blackbox jobs, Victoria Metrics single **and** cluster chart dependencies (cluster disabled in lab via overlay), vmbackup hooks, and OTel pipelines to Victoria Metrics / Victoria Logs. **Lab** only adds `values.local.lab.yaml` so external dependencies are not required for a first boot.
 
-1. **Domains, DNS, TLS** (production K8s).  
-2. **Real SNMP targets** in `values.yaml` if you use Cumulus jobs (replace documentation IPs).  
-3. **Strong passwords** and **network firewalls**.  
-4. **Ingress class** if not APISIX/NGINX as assumed.
+Replace placeholders before real production: [PLACEHOLDERS.md](./PLACEHOLDERS.md).
 
 ---
 
-## Scripts reference
+## Scripts
 
 | Script | Purpose |
 |--------|---------|
-| `scripts/check-prerequisites.sh` | Verify kubectl, helm, docker |
-| `scripts/create-grafana-secret.sh` | Grafana admin Secret in K8s |
-| `scripts/helm-install-central.sh` | `lab` or `production` install |
-| `scripts/port-forward-ui.sh` | Local Grafana in lab mode |
-| `scripts/vm-docker-central-bootstrap.sh` | Docker Compose central stack |
-| `scripts/ansible-copy-inventory.sh` | Local Ansible inventory template |
+| `check-prerequisites.sh` | kubectl, helm, docker |
+| `create-grafana-secret.sh` | `grafana-admin` Secret |
+| `helm-install-central.sh` | `lab` or `production` |
+| `port-forward-ui.sh` | Grafana on localhost:3000 |
+| `vm-docker-central-bootstrap.sh` | Docker central stack |
+| `ansible-copy-inventory.sh` | Local Ansible inventory |
+| `sanitize-for-public.py` | Maintainers: redact before publish |
 
 ---
 
 ## Next reading
 
-- [ARCHITECTURE.md](./ARCHITECTURE.md) — how components fit together  
-- [RUNBOOK.md](./RUNBOOK.md) — operations and troubleshooting  
-- [PLACEHOLDERS.md](./PLACEHOLDERS.md) — naming conventions  
+- [ARCHITECTURE.md](./ARCHITECTURE.md) — components and data flow  
+- [RUNBOOK.md](./RUNBOOK.md) — day-2 operations  
+- [docs/README.md](./docs/README.md) — runbooks, multi-cluster, incidents (reference)  
+- [kubernetes/charts/observability-central/README.md](./kubernetes/charts/observability-central/README.md) — chart-specific notes  

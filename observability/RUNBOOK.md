@@ -2,38 +2,35 @@
 
 ## Prerequisites
 
-- **New to this repo?** Use [GETTING_STARTED.md](./GETTING_STARTED.md) first (scripts + lab path).
-- Kubernetes cluster (or Docker host for VM-only lab)
+- **First time?** Follow [GETTING_STARTED.md](./GETTING_STARTED.md) (Path A lab or Path B production).
 - Helm 3, `kubectl` configured
-- DNS + TLS only if ingress is enabled (not required for lab + port-forward)
-- Ansible + SSH for VM agents (optional)
+- **Kubernetes chart:** Victoria Metrics + Victoria Logs (not Loki)
+- **Docker VM path:** Loki — see `vm-docker/central-stack/`
 
-## Configuration order
+## Configuration order (production Kubernetes)
 
-1. Replace placeholders — see [PLACEHOLDERS.md](./PLACEHOLDERS.md).
-2. Create namespace: `kubectl create namespace observability`
-3. Create Grafana admin Secret:
-
-   ```bash
-   kubectl create secret generic grafana-admin -n observability \
-     --from-literal=admin-user=admin \
-     --from-literal=admin-password='YOUR_SECURE_PASSWORD'
-   ```
-
-4. Deploy Helm chart `observability-central` (see chart README).
-5. Apply TLS manifests from `kubernetes/gitops/` (adjust hosts + issuers).
-6. Deploy VM agents or `observability-edge` on remote clusters.
-7. Verify OTLP: `curl -k https://otel.yourdomain.tld/v1/metrics` (405/400 is OK — proves HTTP reachability).
+1. Replace placeholders — [PLACEHOLDERS.md](./PLACEHOLDERS.md).
+2. Namespace: `kubectl create namespace observability`
+3. Secret `grafana-admin` — `./scripts/create-grafana-secret.sh`
+4. Secret `grafana-secret` — from `kubernetes/charts/observability-central/manifests/grafana-secret.example.yaml` (GitHub OAuth).
+5. Optional Secret `s3-credentials` if `vmBackup.enabled: true`.
+6. `helm upgrade --install` with `values.yaml` + `values.local.yaml` (and optional `values-production.yaml`).
+7. Gateway API + TLS on your shared Gateway (not managed by this chart alone).
+8. Deploy agents (`ansible/otel-agent` or `observability-edge`).
 
 ## Validate
 
 | Check | Command / action |
 |-------|------------------|
-| Pods running | `kubectl get pods -n observability` |
-| Grafana | Browser → `https://grafana.yourdomain.tld` |
-| Prometheus targets | Grafana → Explore → Prometheus, or port-forward `:9090` |
-| Loki | Grafana → Explore → Loki |
-| OTel gateway metrics | Scrape `otel-collector:8888/metrics` inside cluster |
+| Pods | `kubectl get pods -n observability` |
+| PVCs | `kubectl get pvc -n observability` |
+| Grafana (prod) | `https://grafana.<domain>` |
+| Grafana (lab) | `./scripts/port-forward-ui.sh` → http://localhost:3000 |
+| Prometheus | Explore → Prometheus, or port-forward `prometheus:9090` |
+| Victoria Metrics | Explore → Victoria Metrics (PromQL) |
+| Victoria Logs | Explore → Victoria Logs |
+| OTel self-metrics | In-cluster `otel-collector-central:8888/metrics` |
+| OTLP ingress (prod) | `curl -sI https://otel.<domain>/v1/logs` (405/400 OK) |
 
 ## Ports (typical)
 
@@ -41,37 +38,42 @@
 |---------|------|
 | OTLP gRPC | 4317 |
 | OTLP HTTP | 4318 |
-| Grafana | 3000 (in-cluster) |
+| Grafana | 3000 |
 | Prometheus | 9090 |
-| Loki | 3100 |
+| Victoria Logs | 9428 |
 | Victoria Metrics | 8428 |
 
 ## Troubleshooting
 
 | Symptom | Action |
 |---------|--------|
-| Grafana 502 at ingress | Check ingress backend, APISIX/NGINX routes, pod readiness |
-| Loki query errors | Check Loki pod logs, disk full, retention |
-| No agent data | Verify firewall to `otel.yourdomain.tld:443`, TLS SNI, and agent `master_otlp_http` |
-| Prometheus scrape down | Target networking, SNMP community/auth in exporter config |
+| Grafana CrashLoop, missing secret | Create `grafana-admin`; for OAuth create `grafana-secret` or disable `auth.github` in a values overlay |
+| PVC Pending | Fix `storageClassName` in values; lab overlay uses cluster default |
+| HTTPRoute not routing | Gateway API controller running; `gatewayAPI.parentRef` matches your Gateway |
+| No OTLP data | Agent URL, TLS, firewall; gateway pods Ready; VL/VM pods Ready |
+| vmbackup Job failures | Expected if S3 secret missing—disable `vmBackup` or configure S3 |
+| Blackbox probe failures | Placeholder hosts in values until you set real HTTPS targets |
+| Victoria Logs empty | Confirm OTel pipeline `logs` exporter `otlphttp/victorialogs`; send test OTLP log |
 
 ## Maintenance
 
-- **Retention:** Tune Prometheus `retention` and Loki `retention_period` in values.
-- **TSDB trim (Docker):** Run `scripts/prometheus-tsdb-trim/prometheus-tsdb-trim.sh` on the Prometheus data host (see script README).
-- **Upgrades:** `helm dependency update` then `helm upgrade` with reviewed diffs.
+- **Retention:** Prometheus `retention` in values; Victoria Metrics / Logs retention per subchart values.
+- **Docker hosts:** `scripts/prometheus-tsdb-trim/` for TSDB trim on Compose Prometheus.
+- **Upgrades:** `helm dependency update` then `helm upgrade` with reviewed diff.
 
 ## Backup / restore
 
-- Persisted data: Prometheus, Loki, Victoria Metrics, Grafana PVCs — snapshot PVs or use object storage for Loki in production values.
-- Export critical Grafana dashboards to Git (JSON in chart `config/grafana/.../json/`).
+- PVCs: Prometheus, Grafana, Victoria Metrics, Victoria Logs — snapshot or use `vmBackup` to S3 (see `docs/operations/runbooks/runbook-vm-restore.md`).
+- Dashboards in Git under `config/grafana/provisioning/`.
 
-## Demo cleanup script
+## Demo cleanup
 
-`scripts/demo-cleanup/` **wipes** metrics/log data when disk usage exceeds a threshold. **Do not use in production.**
+`scripts/demo-cleanup/` is destructive—lab only.
 
 ## Health checks
 
 - Grafana: `GET /api/health`
 - Prometheus: `/-/ready`
-- OTel: receiver on `4317`/`4318`, self-metrics on `:8888`
+- OTel: `:13133/ready` on gateway pods
+
+Detailed procedures: `docs/operations/runbooks/`.

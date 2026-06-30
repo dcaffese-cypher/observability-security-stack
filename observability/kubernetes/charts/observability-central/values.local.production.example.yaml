@@ -1,29 +1,46 @@
 # ---------------------------------------------------------------------------
-# Copy to values.local.yaml (gitignored) and replace every YOUR_* value.
-# Deploy:  helm upgrade --install observability-central . -n observability \
-#   -f values.yaml -f values.local.yaml
-# Also: create TLS secrets + DNS for both hosts; adjust ingressClassName if not APISIX.
+# Copy to values.local.yaml (do not commit) and replace every YOUR_* value.
+# Deploy:
+#   helm upgrade --install observability-central . -n observability \
+#     -f values.yaml -f values.local.yaml
+# Prerequisites: Gateway API (Envoy Gateway or compatible), TLS on Gateway listeners,
+# Secret grafana-admin, Secret grafana-secret (GitHub OAuth), StorageClass, optional S3 for vmBackup.
 # ---------------------------------------------------------------------------
+
+gatewayAPI:
+  enabled: true
+  parentRef:
+    name: ingress
+    namespace: envoy-gateway-system
+  grafana:
+    hostname: grafana.YOUR_DOMAIN
+  otelCollector:
+    hostname: otel.YOUR_DOMAIN
+
 kube-prometheus-stack:
   grafana:
-    ingress:
-      enabled: true
-      ingressClassName: YOUR_INGRESS_CLASS
-      hosts:
-        - grafana.YOUR_DOMAIN
-      tls:
-        - hosts:
-            - grafana.YOUR_DOMAIN
-          secretName: grafana-observability-tls
+    persistence:
+      storageClassName: YOUR_STORAGE_CLASS
     grafana.ini:
       server:
         domain: grafana.YOUR_DOMAIN
         root_url: "https://grafana.YOUR_DOMAIN/"
+      auth.github:
+        enabled: true
+        allowed_organizations: ["YOUR_GITHUB_ORG"]
 
-otelCollector:
-  ingress:
-    enabled: true
-    host: "otel.YOUR_DOMAIN"
-    className: "YOUR_INGRESS_CLASS"
-    tls: true
-    tlsSecretName: "otel-collector-tls"
+victoria-metrics-single:
+  server:
+    persistentVolume:
+      storageClassName: YOUR_STORAGE_CLASS
+
+victoria-logs-single:
+  server:
+    persistentVolume:
+      storageClassName: YOUR_STORAGE_CLASS
+
+vmBackup:
+  enabled: true
+  s3:
+    bucket: YOUR_VM_BACKUP_BUCKET
+    endpoint: https://objectstore.YOUR_DOMAIN:2222
