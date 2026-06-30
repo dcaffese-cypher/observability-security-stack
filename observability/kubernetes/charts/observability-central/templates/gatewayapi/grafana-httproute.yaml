@@ -1,0 +1,26 @@
+{{- $kps := index .Values "kube-prometheus-stack" }}
+{{- if and .Values.gatewayAPI.enabled $kps.enabled $kps.grafana.enabled }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: grafana-route
+  namespace: {{ .Values.namespace | default "observability" }}
+  labels:
+    app.kubernetes.io/name: grafana
+spec:
+  parentRefs:
+  - name: {{ .Values.gatewayAPI.parentRef.name }}
+    namespace: {{ .Values.gatewayAPI.parentRef.namespace }}
+    sectionName: {{ .Values.gatewayAPI.grafana.sectionName }}
+  hostnames:
+  - {{ .Values.gatewayAPI.grafana.hostname | quote }}
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+    backendRefs:
+    - name: {{ .Values.gatewayAPI.grafana.service.name }}
+      port: {{ .Values.gatewayAPI.grafana.service.port }}
+{{- end }}
+

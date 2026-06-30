@@ -1,0 +1,22 @@
+apiVersion: v2
+name: project-archive
+description: Victoria metrics single and otel collector to siphon and archive specific project metrics.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - archive
+  - otel
+  - victoria
+  - metrics
+maintainers:
+  - name: assembly
+dependencies:
+  - name: victoria-metrics-single
+    version: "0.32.0"
+    repository: https://victoriametrics.github.io/helm-charts/
+    condition: victoria-metrics-single.enabled
+  - name: opentelemetry-collector
+    version: "0.147.0"
+    repository: https://open-telemetry.github.io/opentelemetry-helm-charts/
+    condition: opentelemetry-collector.enabled

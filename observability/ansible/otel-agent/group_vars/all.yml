@@ -5,7 +5,7 @@
 
 # OTLP endpoint: what to give Cloud (and what agents use). Agents send metrics/logs here.
 # When Assembly exposes the OTel gateway via HTTPS, use that URL (e.g. https://otel.assembly.example.com:443).
-# Internal NodePort example: http://YOUR_K8S_NODE_IP:NODEPORT_HTTP (OTLP HTTP), gRPC on NODEPORT_GRPC.
+# Internal/NodePort example: http://YOUR_K8S_NODE_IP:31447 (OTLP HTTP), gRPC on 31804.
 otel_endpoint_http: "https://otel.yourdomain.tld"
 otel_endpoint_grpc: "otel.yourdomain.tld:443"
 

@@ -1,9 +1,9 @@
 apiVersion: v2
-name: otel-collector
+name: observability-edge
 description: OpenTelemetry Collector DaemonSet for Kubernetes (metrics + logs to central OTLP master)
 type: application
 version: 0.1.0
-appVersion: "0.131.0"
+appVersion: "0.1.0"
 keywords:
   - observability
   - opentelemetry
@@ -11,4 +11,17 @@ keywords:
   - logging
   - metrics
 maintainers:
-  - name: Observability maintainers
+  - name: YOUR_ORG Observability
+dependencies:
+  - name: kube-prometheus-stack
+    version: "75.5.0"
+    repository: https://prometheus-community.github.io/helm-charts
+    condition: kube-prometheus-stack.enabled
+  - name: opentelemetry-collector
+    version: "0.147.0"
+    repository: https://open-telemetry.github.io/opentelemetry-helm-charts/
+    alias: otel-deploy
+  - name: opentelemetry-collector
+    version: "0.147.1"
+    repository: https://open-telemetry.github.io/opentelemetry-helm-charts
+    alias: otel-daemonset

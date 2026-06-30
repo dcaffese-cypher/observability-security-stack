@@ -49,6 +49,8 @@ flowchart LR
 | **VM agents** (journald + host metrics → master OTLP) | `vm-docker/agent-edge/` + `ansible/otel-agent/` |
 | **Kubernetes central** (recommended for scale) | `kubernetes/charts/observability-central/` |
 | **Kubernetes workload clusters** | `kubernetes/charts/observability-edge/` |
+| **KPI / long-term metrics archive** | `kubernetes/charts/project-kpi/` |
+| **GitOps samples** | `kubernetes/gitops/` |
 
 OpenStack or other clouds are **consumers** of the OTLP HTTPS endpoint; no OpenStack-specific chart is required beyond network reachability and TLS.
 
@@ -59,6 +61,7 @@ OpenStack or other clouds are **consumers** of the OTLP HTTPS endpoint; no OpenS
 | `scripts/loki-maintenance/` | Loki / OTel maintenance examples |
 | `scripts/prometheus-tsdb-trim/` | Trim oversized Prometheus TSDB blocks on Docker hosts |
 | `scripts/demo-cleanup/` | **Demo only** — aggressive storage cleanup |
+| `docs/` | Runbooks, deploy guides, multi-cluster labels, incident write-ups (placeholders only) |
 
 ## Design decisions
 
@@ -66,6 +69,9 @@ OpenStack or other clouds are **consumers** of the OTLP HTTPS endpoint; no OpenS
 2. **Victoria Metrics for OTLP metrics** — Keeps Prometheus scrapes separate from push-style agent metrics.
 3. **TLS at ingress** — Gateway and Grafana terminate TLS on the ingress controller; in-cluster traffic stays HTTP where typical.
 4. **GitOps TLS split** — Certificates applied outside Helm to avoid perpetual Argo CD drift.
+5. **Gateway API HTTPRoutes** — Optional `gatewayAPI` values attach Grafana and OTel to a shared Envoy Gateway (see chart templates under `templates/gatewayapi/`).
+6. **Grafana mission orgs** — Post-install Job creates orgs; OAuth `org_mapping` ties GitHub teams to org roles (configure `YOUR_GITHUB_ORG` in values).
+7. **VictoriaMetrics backup** — `vmBackup` CronJobs push snapshots to S3-compatible storage (`vmBackup` / `project-kpi` charts).
 
 ## Assumptions
 

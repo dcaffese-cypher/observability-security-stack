@@ -1,41 +1,253 @@
-# Values for OTel Collector DaemonSet. Override per cluster (e.g. via ArgoCD Application values or Ansible).
-# Resource tags (customer/environment/country); master maps to CLIENT/ENVIRONMENT/COUNTRY for Loki/Prometheus.
+# Prometheus and Loki: let Kubernetes schedule (no nodeSelector/nodeAffinity).
+kube-prometheus-stack:
+  enabled: true
+  crds:
+    enabled: false
+  nameOverride: ""
+  fullnameOverride: ""
+  namespace: observability
+  prometheus:
+    fullnameOverride: "prometheus"
+    prometheusSpec:
+      replicas: 1
+      retention: 1d
 
-# Central OTLP HTTP endpoint (no trailing slash). In-cluster example below; override for remote gateway.
-# Remote VM/Docker gateway: https://otel.yourdomain.tld or http://YOUR_NODE_IP:NODEPORT
-masterOtlpHttp: "http://otel-collector.observability.svc.cluster.local:4318"
+  alertmanager:
+    enabled: false
 
-# Resource tags; central collector maps these to Loki / Victoria Metrics labels.
-customer: "YOUR_ORG"
-environment: "YOUR_ENV"
-country: "YOUR_COUNTRY"
-serviceName: "k8s-cluster"
-# Optional: cluster name (defaults to serviceName), team, site
-cluster: ""
-team: ""
-site: ""
+  # Use this chart to deploy kubelet and state metrics
+  kubelet:
+    enabled: true
+    serviceMonitor:
+      probes: false
+      resource: false
+      cAdvisor: true
+      metricRelabelings:
+        - action: keep
+          regex: (kubelet_volume_stats_inodes_used|kubelet_volume_stats_inodes|machine_cpu_cores|container_cpu_usage_seconds_total|machine_memory_bytes|kubelet_volume_stats_used_bytes|kubelet_volume_stats_capacity_bytes)
+          sourceLabels: [__name__]
+  kubeStateMetrics:
+    enabled: true
+  prometheus-node-exporter:
+    prometheus:
+      monitor:
+        metricRelabelings:
+          - action: keep
+            regex: (node_cpu_core_throttles_total|node_filesystem_files|node_time_seconds|node_boot_time_seconds|node_filefd_maximum|node_filefd_allocated|node_memory_Buffers_bytes|node_memory_Cached_bytes|node_memory_MemFree_bytes|node_memory_SwapTotal_bytes|node_memory_SwapFree_bytes|node_load1|node_load5|node_load15|node_context_switches_total|node_intr_total|node_timex_estimated_error_seconds|node_timex_maxerror_seconds|node_network_receive_errs_total|node_network_transmit_errs_total|node_network_receive_drop_total|node_network_transmit_drop_total|node_netstat_Tcp_CurrEstab|node_nf_conntrack_entries|node_nf_conntrack_entries_limit|node_filesystem_avail_bytes|node_filesystem_size_bytes|node_filesystem_files_free|node_disk_read_bytes_total|node_disk_written_bytes_total|node_disk_reads_completed_total|node_disk_writes_completed_total|node_disk_io_now|node_filesystem_device_error|node_cpu_seconds_total|node_memory_MemTotal_bytes|node_memory_MemAvailable_bytes|node_network_receive_bytes_total|node_network_transmit_bytes_total|node_network_receive_packets_total|node_network_transmit_packets_total)
+            sourceLabels: [__name__]
+  kube-state-metrics:
+    prometheus:
+      monitor:
+        interval: "15s"
+        metricRelabelings:
+          - action: keep
+            regex: (kube_pod_info|kube_node_status_condition|kube_ingress_path|kube_node_spec_unschedulable|kube_pod_container_resource_requests|kube_pod_container_resource_limits|kube_node_info|kube_namespace_created|kube_pod_labels|kube_pod_status_phase|kube_pod_container_status_running|kube_service_info|kube_namespace_labels|kube_endpoint_info|kube_deployment_labels|kube_statefulset_labels|kube_daemonset_labels|kube_persistentvolumeclaim_info|kube_hpa_labels|kube_configmap_info|kube_secret_info|kube_networkpolicy_labels)
+            sourceLabels: [__name__]
+    metricLabelsAllowlist:
+      - pods=[*]
 
-# Collector image
-image:
-  repository: otel/opentelemetry-collector-contrib
-  tag: "0.131.0"
-  pullPolicy: IfNotPresent
+  grafana:
+    enabled: false
 
-# DaemonSet / pod
-resources: {}
-  # limits:
-  #   memory: 512Mi
-  # requests:
-  #   cpu: 100m
-  #   memory: 256Mi
+  defaultRules:
+    create: true
 
-# Optional: node selector / tolerations for DaemonSet
-nodeSelector: {}
-tolerations: []
+  nodeExporter:
+    enabled: true
 
-# Namespace to install into (created if not exists)
-namespace: otel
 
-# Release name (used as prefix when needed)
-nameOverride: ""
-fullnameOverride: ""
+otel-deploy:
+  enabled: true
+
+  mode: deployment
+  image:
+    repository: "otel/opentelemetry-collector-contrib"
+  
+  # We do not use otel to deploy metric or log collectors
+  presets:
+    clusterMetrics:
+      enabled: true
+
+  
+  extraEnvs:
+    - name: OTEL_AUTH_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: otel-auth-secret
+          key: token
+
+  # Default config to be used.
+  config:
+    processors:
+      deltatocumulative:
+        max_stale: 5m
+
+      batch:
+        send_batch_size: 2000
+        send_batch_max_size: 4000
+        timeout: 5s
+
+      # Do not specific a cluster name in default values 
+      resource/tags:
+        attributes: []
+          # - action: upsert
+          #   key: cluster_name
+          #   value: edge-cluster-dev
+
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+      prometheus:
+        config:
+          scrape_configs:
+            - job_name: federate
+              honor_labels: true
+              metrics_path: /federate
+              params:
+                'match[]':
+                  - '{job="kubelet"}'
+                  - '{job="node-exporter"}'
+                  - '{job="kube-state-metrics"}'
+              static_configs:
+                - targets:
+                    - observability-edge-kube-pr-prometheus.observability.svc.cluster.local:9090
+
+    exporters:
+      otlp_http/central-otel:
+        endpoint: https://otel.yourdomain.tld:443
+        compression: gzip
+        headers:
+         Authorization: "Bearer ${env:OTEL_AUTH_TOKEN}"
+
+    service:
+      pipelines:
+        metrics:
+          receivers: [k8s_cluster, prometheus]
+          processors: [batch, deltatocumulative, resource/tags]
+          exporters: [otlp_http/central-otel]
+  
+  ingress:
+    enabled: false
+
+
+otel-daemonset:
+
+  mode: daemonset
+
+  fullnameOverride: opentelemetry-daemonset
+
+  image:
+    repository: "otel/opentelemetry-collector-contrib"
+
+  tolerations:
+    - effect: NoSchedule
+      operator: Exists
+
+  presets:
+    logsCollection:
+      enabled: true
+    kubeletMetrics:
+      enabled: true
+    kubernetesAttributes:
+      enabled: false
+    hostMetrics:
+      enabled: true
+
+  extraEnvs:
+    - name: OTEL_AUTH_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: otel-auth-secret
+          key: token
+
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+            cors:
+              allowed_origins: ["http://*"]
+  
+      # Enabling the optional metrics we want from these recievers
+      kubeletstats:
+        metrics:
+          k8s.node.uptime:
+            enabled: true
+          k8s.volume.available:
+            enabled: true
+          k8s.volume.capacity:
+            enabled: true
+        metric_groups: [node, pod, container, volume]
+        extra_metadata_labels:
+          - k8s.volume.type
+
+      hostmetrics:
+        scrapers:
+          cpu:
+            metrics:
+              system.cpu.logical.count:
+                enabled: true
+              system.cpu.physical.count:
+                enabled: true
+
+    extensions: {}
+    
+    processors:
+      resource/cluster-identity:
+        attributes:
+          - action: upsert
+            key: cluster
+            value: "undefined"
+
+      attributes/copy-k8s-labels:
+        actions:
+          - action: insert
+            key: namespace
+            from_attribute: k8s.namespace.name
+          - action: insert
+            key: pod
+            from_attribute: k8s.pod.name
+          - action: insert
+            key: node
+            from_attribute: k8s.node.name
+          - action: insert
+            key: container
+            from_attribute: k8s.container.name
+          - action: insert
+            key: deployment
+            from_attribute: k8s.deployment.name
+
+      batch/logs:
+        send_batch_size: 2000
+        timeout: 2s
+
+      batch:
+        send_batch_size: 2000
+        send_batch_max_size: 4000
+        timeout: 5s
+
+    exporters:
+      otlp_http/central-otel:
+        endpoint: https://otel.yourdomain.tld:443
+        compression: gzip
+        headers:
+         Authorization: "Bearer ${env:OTEL_AUTH_TOKEN}"
+
+    service:
+      pipelines:
+        logs:
+          receivers: [otlp, filelog]
+          processors: [attributes/copy-k8s-labels, batch/logs, resource/cluster-identity]
+          exporters: [otlp_http/central-otel]
+        metrics:
+          receivers: [kubeletstats, hostmetrics]
+          processors: [batch, resource/cluster-identity]
+          exporters: [otlp_http/central-otel]

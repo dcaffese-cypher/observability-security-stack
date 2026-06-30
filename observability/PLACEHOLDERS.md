@@ -17,9 +17,17 @@ Replace these tokens across the repository before deployment. Keep a private ove
 | `MASTER_SERVER_IP` | Same as central collector host (agent `.env`) |
 | `192.0.2.10`–`192.0.2.13` | RFC 5737 **example** SNMP targets — replace with real switch management IPs |
 | `YOUR_ORG/YOUR_OBSERVABILITY_REPO` | GitHub (or GitLab) clone URL for Argo CD |
-| `AGENT_SERVER_IP_*`, `SSH_USER` | Ansible inventory examples |
+| `YOUR_GITHUB_ORG` | GitHub organization for Grafana OAuth team mapping (`@YOUR_GITHUB_ORG/team`) |
+| `YOUR_SSH_JUMP_HOST` | SSH `ProxyJump` bastion in `~/.ssh/config` examples |
+| `YOUR_VM_BACKUP_BUCKET`, `YOUR_OBSERVABILITY_BACKUP_BUCKET` | S3-compatible bucket names for VictoriaMetrics / restore runbooks |
+| `YOUR_STORAGE_CLASS` | Kubernetes `StorageClass` for Prometheus/Loki PVCs |
+| `kubernetes/gitops/` | Argo CD Application + optional TLS samples (Gateway API or legacy ingress) |
+| `docs/` | Runbooks, architecture, multi-cluster guides (sanitized from production) |
 
-## SNMP / Prometheus
+## Maintainer sync (private → public)
+
+If you mirror changes from an internal repo, run `scripts/sanitize-for-public.py` on `observability/` before commit. Never copy live `inventory.ini`, kubeconfigs, or TLS keys.
+
 
 Cumulus switch jobs in `values.yaml` use documentation IPs. Until you set real targets, scrapes will fail harmlessly or time out.
 

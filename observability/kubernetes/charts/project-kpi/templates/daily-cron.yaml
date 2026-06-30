@@ -1,0 +1,38 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: vmbackup-daily
+  namespace: {{ .Release.Namespace }}
+spec:
+  schedule: "0 0 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: test-vmbackup
+              image: victoriametrics/vmbackup
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  TIMESTAMP=$(date +%Y-%m-%d)
+                  ./vmbackup-prod \
+                    -origin=s3://{{ .Values.backup.BackupBucket }}/vm-backups/{{ .Values.backup.HourylPath }} \
+                    -customS3Endpoint={{ .Values.backup.customS3Endpoint }} \
+                    -dst=s3://{{ .Values.backup.BackupBucket }}/vm-backups/$TIMESTAMP
+              env:
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.backup.s3SecretName }}
+                      key: key
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.backup.s3SecretName }}
+                      key: secret
+---

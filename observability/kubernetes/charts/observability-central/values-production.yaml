@@ -1,6 +1,6 @@
 # Production scalability overrides (merge with values.yaml).
 # Deploy: helm upgrade --install observability-central . -n observability -f values.yaml -f values-production.yaml
-# See docs/production-scalability.md for references and migration notes.
+# See docs/architecture/production-scalability.md for references and migration notes.
 
 # --- Prometheus: HA (2 replicas)
 kube-prometheus-stack:

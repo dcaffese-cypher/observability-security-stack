@@ -1,0 +1,17 @@
+{{- $files := .Files.Glob "config/grafana/provisioning/dashboards/conversion/*.json" }}
+
+{{- range $path, $file := $files }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ printf "%s-%s" $.Release.Name (base $path | trimSuffix ".json") }}
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    k8s-sidecar-target-directory: "/tmp/dashboards/conversion-json"
+data:
+  {{ base $path }}: |
+{{ $.Files.Get $path | indent 4 }}
+{{- end }}
+---

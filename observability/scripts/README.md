@@ -12,4 +12,6 @@
 
 Maintenance (advanced): `demo-cleanup/`, `loki-maintenance/`, `prometheus-tsdb-trim/`.
 
+| `sanitize-for-public.py` | Maintainer: strip hostnames/IPs before publishing (see `PLACEHOLDERS.md`) |
+
 Full walkthrough: [../GETTING_STARTED.md](../GETTING_STARTED.md).

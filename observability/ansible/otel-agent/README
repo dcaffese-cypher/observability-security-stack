@@ -1,0 +1,353 @@
+# OpenTelemetry Collector Agent - Ansible Deployment
+
+This project deploys an OpenTelemetry Collector agent using Ansible with automatic Docker detection and label configuration for Loki.
+
+**Where Ansible runs:** Ansible does **not** run inside the Kubernetes observability namespace. You run it from a **control node** that has (1) SSH access to the Linux servers in `[agents]` (e.g. your laptop with VPN, or a bastion), and (2) for `deploy_otel_k8s.yml`, Helm + kubeconfig(s) to reach each cluster in `[k8s_clusters]`. Typical: run from your PC (with VPN and SSH to agents) or from **inf-1** (if it has SSH to agents and kubeconfigs for remote clusters). The observability namespace only runs the central stack (Prometheus, Loki, Grafana, OTel); it does not execute Ansible.
+
+## Features
+
+* **Automatic Docker detection**: The playbook detects if Docker is installed and automatically configures container metrics and log collection.
+* **Loki labels**: Includes predefined labels for better log organization in Loki.
+* **Real-time history script**: Automatically installs and runs `enable_realtime_history.sh`.
+* **Flexible configuration**: Supports both Docker and non-Docker servers.
+
+## Architecture (Cloud agents vs Assembly backend)
+
+* **Cloud (agents):** only send metrics/logs. They configure **OTLP endpoint** and **protocol**. They do **not** need to know about Victoria Metrics or Prometheus.
+* **Assembly (observability centre):** runs the **OTel Collector gateway** (receives OTLP), then **Victoria Metrics** (metrics) and **Loki** (logs). **Prometheus** stays independent (existing scrapes/dashboards).
+* Flow: **Cloud workloads → OTel Agent → HTTPS (OTLP) → OTel Gateway (Assembly) → Victoria Metrics → Grafana.**
+* What to give Cloud: **only the OTLP endpoint** (e.g. `https://otel.assembly.example.com:443` when exposed via Ingress). Override in `inventory.ini` or use `group_vars/all.yml`.
+
+## File Structure
+
+```
+├── group_vars/
+│   └── all.yml                    # OTLP endpoint (for Cloud); internal VM URLs; recommended labels
+├── deploy_otel_agent.yml          # Deploy agent to Linux hosts (with Docker detection)
+├── deploy_otel_k8s.yml            # Deploy OTel via Helm to K8s clusters ([k8s_clusters])
+├── deploy_otel_all.yml            # Both: agents + k8s_clusters in one run
+├── template/
+│   └── otelcol-agent.yml.j2       # Jinja2 template with Docker detection (hosts only)
+├── tasks/
+│   └── deploy_otel_k8s_cluster.yml # Helm install/upgrade per cluster (chart: ../charts/observability-edge)
+├── enable_realtime_history.sh    # Real-time history script
+├── inventory.ini                  # [agents] + [k8s_clusters] + vars
+└── README                        # This file
+```
+Chart (repo root): `charts/observability-edge/` — use with Ansible or ArgoCD.
+
+## Usage
+
+### 1. Configure the inventory
+
+Edit `inventory.ini` with your servers:
+
+```ini
+[agents]
+AGENT_SERVER_IP_01 ansible_user=root country=AT environment=PRD customer=YOUR_ORG
+YOUR_OTEL_MASTER_IP ansible_user=root country=AT environment=PRD customer=YOUR_ORG compose_project=myapp
+
+[agents:vars]
+master_otlp_http=http://YOUR_OTEL_MASTER_IP:4318
+master_otlp_grpc=YOUR_OTEL_MASTER_IP:4317
+otelcol_version=0.131.0
+enable_traces=false
+```
+
+### 2. Run the playbook
+
+```bash
+# Only Linux hosts (agents)
+ansible-playbook -i inventory.ini deploy_otel_agent.yml -vvv
+
+# Only Kubernetes clusters (if [k8s_clusters] has hosts with kubeconfig)
+ansible-playbook -i inventory.ini deploy_otel_k8s.yml
+
+# Both: agents + all K8s clusters (one command)
+ansible-playbook -i inventory.ini deploy_otel_all.yml
+```
+
+### 3. Verify deployment
+
+```bash
+# Check if the service is running
+systemctl status otelcol
+
+# Verify internal telemetry
+curl http://localhost:8888/metrics
+
+# Check service logs
+journalctl -u otelcol -f
+```
+
+## Available Variables
+
+### Required variables (in inventory.ini)
+
+* `master_otlp_http`: HTTP endpoint of the master collector
+* `master_otlp_grpc`: gRPC endpoint of the master collector
+* `otelcol_version`: OpenTelemetry Collector version
+
+### Optional variables
+
+* `enable_traces`: Enable traces pipeline (default: false)
+* `compose_project`: Docker Compose project
+* `compose_service`: Docker Compose service
+* `container_name`: Container name
+* `filename`: Log file name
+* `service_name`: Service name
+* `source`: Log source
+
+### Per-host variables
+
+* `country`: Server country
+* `environment`: Environment (PRD, DEV, etc.)
+* `customer`: Customer/client
+* `ansible_user`: SSH user
+* `team`: Team name (recommended for Victoria Metrics/Grafana; e.g. `cloud`)
+* `site`: Site/location (e.g. `openstack-central`)
+* `cluster`: Cluster name (for K8s; defaults to `service_name`)
+* `service`: Service name (defaults to `service_name` or hostname)
+
+## What to give the Cloud team (or any team deploying the agent)
+
+**Cloud only needs the OTLP endpoint.** They do **not** need Victoria Metrics or Prometheus.
+
+1. **OTLP endpoint** (the only thing they configure):
+   * When Assembly exposes the gateway via HTTPS: `https://otel.assembly.example.com:443` (or your host).
+   * Protocols: **OTLP HTTP** and **OTLP gRPC** (same host; typical ports 443 for HTTPS, or 4318 HTTP / 4317 gRPC if not behind TLS).
+   * Set in your `group_vars/all.yml` as `otel_endpoint_http`; agents use it as `master_otlp_http`. For HTTPS use the same URL for HTTP client (e.g. `https://otel.yourdomain.tld`).
+
+2. **Example agent config (Cloud side):**
+   ```yaml
+   exporters:
+     otlphttp:
+       endpoint: https://otel.assembly.example.com
+       tls: {}  # or insecure: true if internal
+   service:
+     pipelines:
+       metrics:
+         receivers: [otlp]
+         exporters: [otlphttp]
+   ```
+
+3. **Labels** (recommended so metrics are filterable in Grafana): `environment`, `cluster`, `team`, `site`, `service`. Set per host in inventory or in `[agents:vars]` / `[k8s_clusters:vars]`.
+
+4. **Network / TLS:** If the endpoint is public, use HTTPS and (if needed) auth or allowlist. Assembly controls the backend (Victoria Metrics); Cloud never talks to VM directly.
+
+## Kubernetes clusters (Option B)
+
+If you have Kubernetes clusters (e.g. many in ArgoCD) and want to send their metrics and logs to the same master, use the **same inventory** and a separate playbook:
+
+1. In `inventory.ini` add a group `[k8s_clusters]`. Each **host** = one cluster (logical name).  
+2. **Required per host:** `kubeconfig=/path/to/kubeconfig-for-this-cluster` (path on the machine where you run Ansible).  
+3. **Optional per host:** `master_otlp_http`, `customer`, `environment`, `country`, `service_name` (e.g. cluster name). Group vars in `[k8s_clusters:vars]` apply to all clusters.  
+4. Run **on the machine that has the kubeconfigs** (e.g. your laptop or a CI runner):  
+   `ansible-playbook -i inventory.ini deploy_otel_k8s.yml`  
+   This runs `helm upgrade --install` for each cluster with values from inventory (chart: `charts/observability-edge/`). Alternatively use **ArgoCD**: add an Application that points to this Helm chart in Git (see `charts/observability-edge/README.md`).
+
+**Requirements for Ansible K8s:** Helm 3, `community.kubernetes` collection: `ansible-galaxy collection install community.kubernetes`
+
+**Unified run:** `deploy_otel_all.yml` runs `deploy_otel_agent.yml` then `deploy_otel_k8s.yml`. One entry point for both agents and clusters (same idea as “if Docker then add docker”).
+
+## Behavior Based on Docker
+
+### Without Docker installed
+
+* Collects host system metrics
+* Collects logs from `/var/log/syslog`, `/var/log/messages`, and journald
+* Uses `root_path: /` for hostmetrics
+
+### With Docker installed
+
+* Collects both host and container metrics
+* Collects Docker container logs
+* Uses `root_path: /` for hostmetrics (collector runs directly on host, not in a container)
+* Includes `docker_stats` receiver for container metrics
+* Includes `filelog/containers` receiver for container logs
+* Configures systemd service dependencies
+
+## Loki Labels
+
+The template automatically includes the following labels as **resource attributes** for better organization in Loki:
+
+* `host` - Hostname of the server
+* `source` - Log source (always `"otelcol"`)
+* `customer` - Customer (from inventory; master maps to CLIENT for Loki)
+* `environment` - Environment (from inventory; master maps to ENVIRONMENT)
+* `country` - Country (from inventory; master maps to COUNTRY)
+
+**Behavior:**
+
+* **`service.name`** is always the server’s hostname (e.g., `"Grafana-example"`)
+* **All logs and metrics** (both host and container) appear under the same `service.name`
+* **Containers** are automatically identified by Docker metadata (container_name, container_image, etc.)
+* **No need to configure** container-specific variables in the inventory
+
+**Example configuration in inventory.ini**:
+
+```ini
+AGENT_SERVER_IP_01 ansible_user=root country=AT environment=PRD customer=YOUR_ORG
+```
+
+This will make all logs and metrics from that server and its containers appear under
+`service.name="Grafana-example"` with labels `customer="YOUR_ORG"`, `environment="PRD"`, and `country="AT"` (mapped to CLIENT, ENVIRONMENT, COUNTRY in Loki).
+
+## Real-Time History Script
+
+The playbook automatically installs and runs `enable_realtime_history.sh`, which:
+
+* Configures `shopt -s histappend` in `.bashrc`
+* Adds `PROMPT_COMMAND="history -a;$PROMPT_COMMAND"` for real-time history
+* Applies to both the current user and root
+
+## Troubleshooting
+
+### Verify Docker detection
+
+```bash
+ansible-playbook -i inventory.ini deploy_otel_agent.yml --check -v
+```
+
+### Verify generated configuration
+
+```bash
+cat /etc/otelcol/otelcol-agent.yml
+```
+
+### View service logs
+
+```bash
+journalctl -u otelcol -f
+```
+
+### Docker log timestamp parsing errors
+
+If you see errors like:
+
+```
+failed to emit token ... time parser: parsing time "2025-10-01T18:00:41.51516361Z" as "2006-01-02T15:04:05.000000000Z07:00": cannot parse ".51516361Z" as ".000000000"
+```
+
+This indicates the timestamp parser expects exactly 9 fractional digits, while Docker logs send 8.
+The template already includes a fix using `strptime` with `%f`, which accepts 1–9 fractional digits.
+
+### "Broken pipe" errors in Prometheus
+
+If you see errors like:
+
+```
+error encoding and sending metric family: write tcp 127.0.0.1:9464->127.0.0.1:57778: write: broken pipe
+```
+
+This means something is trying to scrape metrics on port 9464,
+but the template is configured to send everything via OTLP.
+The Prometheus exporter was intentionally removed so that all metrics go to the master collector through OTLP.
+
+---
+
+
+[root@tsm03-10g otelcol]# getent group docker
+[root@tsm03-10g otelcol]# sudo groupadd --system docker
+[root@tsm03-10g otelcol]# sudo usermod -aG docker root
+[root@tsm03-10g otelcol]# sudo systemctl daemon-reload
+[root@tsm03-10g otelcol]# sudo systemctl restart otelcol.service
+[root@tsm03-10g otelcol]# sudo systemctl status otelcol.service -l
+
+
+Description
+
+Configured the OpenTelemetry Collector Agent on HOSTNAME-EXAMPLE to include IBM Spectrum Scale (GPFS) logs for centralized ingestion into Loki via the master collector (YOUR_OTEL_MASTER_IP).
+Changes implemented
+
+Added a new filelog/gpfs receiver to capture logs from /var/adm/ras/mmfs.log.latest.
+
+Configured the receiver with include_file_path and include_file_name for log context.
+
+Added parsing operators to move file path into the resource attributes and tag logs with:
+
+    log.type = gpfs
+
+    component = mmfs
+
+Updated the filelogs and logs pipeline to include the new receiver:
+
+
+
+
+
+extensions:
+  host_observer: {}
+
+receivers:
+  hostmetrics:
+    root_path: /
+    collection_interval: 15s
+    scrapers:
+      cpu: {}
+      memory: {}
+      disk: {}
+      filesystem:
+        exclude_mount_points:
+          match_type: regexp
+          mount_points:
+            - ^/snap($|/).*
+            - ^/boot($|/).*
+            - ^/boot/efi($|/).*
+        exclude_fs_types:
+          match_type: strict
+          fs_types: [squashfs, overlay, tmpfs, devtmpfs, proc, sysfs, devpts, cgroup2]
+      network: {}
+      load: {}
+      paging: {}
+      processes: {}
+
+# GPFS / Spectrum Scale
+  filelog/gpfs:
+    include: [ /var/adm/ras/mmfs.log.latest ]
+    start_at: beginning
+    include_file_path: true
+    operators:
+      - type: move
+        from: attributes["log.file.path"]
+        to: resource["log.file.path"]
+      - type: add
+        field: resource["log.type"]
+        value: "gpfs"
+      - type: add
+        field: resource["component"]
+        value: "mmfs"
+
+
+
+logs:
+  receivers: [filelog/sys, filelog/gpfs, journald, otlp]
+  processors: [resourcedetection, resource/service, resource/labels, resource/loki_labels, batch]
+  exporters: [otlphttp]
+
+  Restarted and verified the OTel Collector service:
+sudo systemctl restart otelcol
+
+    sudo systemctl status otelcol
+
+Validation steps
+
+Confirmed ingestion by querying in Grafana (Loki data source):
+{log.file.path="/var/adm/ras/mmfs.log.latest"}
+
+or
+
+    {log.type="gpfs", host="HOSTNAME-EXAMPLE"}
+
+    Verified presence of key log patterns:
+
+        Recovering nodes
+
+        Calling user exit script
+
+        Accepted and connected
+
+        IBM Storage Protect
+
+Outcome
+GPFS events from /var/adm/ras/mmfs.log.latest are now successfully collected by the OTel Agent and visible in Grafana through Loki, enabling further correlation and alert creation.

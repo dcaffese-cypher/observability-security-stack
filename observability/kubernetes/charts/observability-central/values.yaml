@@ -1,30 +1,88 @@
-# Observability central: kube-prometheus-stack + loki (community charts) + OTel Collector
+# Observability central: kube-prometheus-stack + VictoriaMetrics/VictoriaLogs (cluster) + OTel Collector
 # Deploy: helm dependency update && helm upgrade --install observability-central . -n observability --create-namespace -f values.yaml
-# Production (Loki Distributed, Prometheus HA): add -f values-production.yaml and see docs/production-scalability.md
 # Backup of previous custom chart: helm/observability-master-backup
 
 namespace: observability
 
+# VictoriaMetrics Backup: aligned with Sean's kpi-archive-1 pattern (vmbackup-prod + customS3Endpoint).
+# Requires: S3-compatible bucket + Secret with keys "key" and "secret" (same as project-kpi).
+# To enable: set enabled=true, create the Secret, and ensure the PVC name matches the VM StatefulSet.
+vmBackup:
+  enabled: true
+  image:
+    repository: victoriametrics/vmbackup
+    tag: latest
+  vmServiceName: "observability-central-victoria-metrics-single-server"
+  pvcName: "server-volume-observability-central-victoria-metrics-single-server-0"
+  s3:
+    bucket: "YOUR_VM_BACKUP_BUCKET"
+    endpoint: "https://objectstore.yourdomain.tld:2222"
+    hourlyPath: "latest"
+    credentialsSecret: "s3-credentials"
+
+vmBackupCluster:
+  enabled: false
+  replicas: 2
+  image:
+    repository: victoriametrics/vmbackup
+    tag: latest
+  vmServiceName: "vm-cluster-storage"
+  s3:
+    bucket: "YOUR_VM_CLUSTER_BACKUP_BUCKET"
+    endpoint: "https://objectstore.yourdomain.tld:2222"
+    hourlyPath: "latest"
+    credentialsSecret: "s3-credentials"
+
+# Blackbox Exporter (subchart: prometheus-blackbox-exporter).
+# Probes public HTTPS endpoints for availability and TLS certificate validity.
+blackboxExporter:
+  enabled: true
+
+prometheus-blackbox-exporter:
+  fullnameOverride: blackbox-exporter
+  config:
+    modules:
+      https_2xx:
+        prober: http
+        timeout: 10s
+        http:
+          valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+          valid_status_codes: [200, 401]
+          method: GET
+          fail_if_ssl: false
+          fail_if_not_ssl: true
+          tls_config:
+            insecure_skip_verify: false
+          preferred_ip_protocol: ip4
+
+# Gateway API (Envoy Gateway)
+# The infra cluster migrated away from APISIX Ingress to Gateway API HTTPRoute.
+# These values create HTTPRoutes that attach to the shared Gateway managed in the k8s-infra repo.
+gatewayAPI:
+  enabled: true
+  parentRef:
+    name: ingress
+    namespace: envoy-gateway-system
+  grafana:
+    hostname: grafana.yourdomain.tld
+    sectionName: grafana-https
+    service:
+      name: grafana
+      port: 80
+  otelCollector:
+    hostname: otel.yourdomain.tld
+    sectionName: otel-https
+    service:
+      name: otel-collector-central
+      port: 4318
+
 # Grafana admin: credentials from Kubernetes Secret (not in repo). See runbook §3 to create/update the secret.
 
-# Our dashboards and alerting (provisioned via ConfigMaps + extraConfigmapMounts)
-customGrafana:
-  dashboardFiles:
-    - "Cumulus SNMP – Interfaces & Switch Overview-1764860425841.json"
-    - "NETWORK-1759346331550.json"
-    - "WAZUH - FIM-1759346491136.json"
-    - "WAZUH - MITRE ATT&CK-1759346504913.json"
-    - "WAZUH - SYSTEM SECURITY AUDIT-1759346516530.json"
-    - "WAZUH - SYSTEM VULNERABILITIES-1759346528934.json"
-    - "WAZUH SUMMARY-1759346538593.json"
-    - cumulus-snmp-dashboard.json
-    - cumulus.json
-    - cumulus_switch.json
-    - snmp-interfaces.json
-
-# Prometheus and Loki: let Kubernetes schedule (no nodeSelector/nodeAffinity).
+# Prometheus: let Kubernetes schedule (no nodeSelector/nodeAffinity).
 kube-prometheus-stack:
   enabled: true
+  crds:
+    enabled: false
   nameOverride: ""
   fullnameOverride: ""
   namespace: observability
@@ -36,70 +94,50 @@ kube-prometheus-stack:
       storageSpec:
         volumeClaimTemplate:
           spec:
-            storageClassName: null
+            storageClassName: "YOUR_STORAGE_CLASS"
             accessModes: ["ReadWriteOnce"]
             resources:
               requests:
                 storage: 20Gi
       additionalScrapeConfigs:
+        # Interesting idea to monitor the services, we can keep this prometheus instance around to monitor the stack
         - job_name: prometheus
           metrics_path: /metrics
           static_configs:
             - targets: ['prometheus:9090']
-        - job_name: loki
-          metrics_path: /metrics
-          static_configs:
-            - targets: ['observability-central-loki:3100']
         - job_name: otel-collector
           metrics_path: /metrics
           static_configs:
-            - targets: ['otel-collector:8888']
+            - targets: ['otel-collector-central:8888']
         - job_name: grafana
           metrics_path: /metrics
           static_configs:
             - targets: ['grafana:3000']
-        - job_name: kubernetes-pods
-          kubernetes_sd_configs:
-            - role: pod
+        # TODO Migrate dashboards to use VMetrics as a data source, then remove these job entries -> they are migrated to the prometheus reciever in otel
+        # Blackbox: HTTPS endpoint probes (availability + TLS cert validity)
+        - job_name: blackbox-https
+          metrics_path: /probe
+          params:
+            module: [https_2xx]
+          static_configs:
+            - targets:
+                - https://argocd.yourdomain.tld
+                - https://grafana.yourdomain.tld
+                - https://otel.yourdomain.tld
+                - https://vault.yourdomain.tld
           relabel_configs:
-            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
-              action: keep
-              regex: "true"
-            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
-              action: replace
-              target_label: __metrics_path__
-              regex: (.+)
-            - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
-              action: replace
-              regex: '([^:]+)(?::\d+)?;(\d+)'
-              replacement: '${1}:${2}'
-              target_label: __address__
-            - action: labelmap
-              regex: __meta_kubernetes_pod_label_(.+)
-            - source_labels: [__meta_kubernetes_namespace]
-              target_label: kubernetes_namespace
-            - source_labels: [__meta_kubernetes_pod_name]
-              target_label: kubernetes_pod_name
-        - job_name: kubernetes-endpoints
-          kubernetes_sd_configs:
-            - role: endpoints
-          relabel_configs:
-            - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scrape]
-              action: keep
-              regex: "true"
-            - source_labels: [__meta_kubernetes_namespace]
-              target_label: kubernetes_namespace
-            - source_labels: [__meta_kubernetes_service_name]
-              target_label: kubernetes_name
-            - source_labels: [__meta_kubernetes_pod_name]
-              target_label: kubernetes_pod_name
+            - source_labels: [__address__]
+              target_label: __param_target
+            - source_labels: [__param_target]
+              target_label: instance
+            - target_label: __address__
+              replacement: blackbox-exporter:9115
         - job_name: cumulus-snmp-interfaces
           metrics_path: /snmp
           params:
             module: [if_mib]
             auth: [cumulus_v3]
           static_configs:
-            # RFC 5737 documentation IPs — replace with your switch management addresses
             - targets: [192.0.2.10, 192.0.2.11, 192.0.2.12, 192.0.2.13]
           relabel_configs:
             - source_labels: [__address__]
@@ -117,7 +155,6 @@ kube-prometheus-stack:
             module: [cumulus_lldp]
             auth: [cumulus_v3]
           static_configs:
-            # RFC 5737 documentation IPs — replace with your switch management addresses
             - targets: [192.0.2.10, 192.0.2.11, 192.0.2.12, 192.0.2.13]
           relabel_configs:
             - source_labels: [__address__]
@@ -129,12 +166,49 @@ kube-prometheus-stack:
             - source_labels: []
               target_label: __metrics_path__
               replacement: /snmp
+  # Use this chart to deploy kubelet and state metrics
+  kubelet:
+    enabled: true
+    serviceMonitor:
+      probes: false
+      resource: false
+      cAdvisor: true
+      metricRelabelings:
+          - action: keep
+            regex: (kubelet_volume_stats_inodes_used|kubelet_volume_stats_inodes|machine_cpu_cores|container_cpu_usage_seconds_total|machine_memory_bytes|kubelet_volume_stats_used_bytes|kubelet_volume_stats_capacity_bytes|kubelet_volume_stats_available_bytes|container_memory_rss|container_memory_working_set_bytes|container_network_receive_bytes_total|container_network_transmit_bytes_total)
+            sourceLabels: [__name__]
+  kubeStateMetrics:
+    enabled: true
+  prometheus-node-exporter:
+    prometheus:
+      monitor:
+        metricRelabelings:
+          - action: keep
+            regex: (node_cpu_core_throttles_total|node_filesystem_files|node_time_seconds|node_boot_time_seconds|node_filefd_maximum|node_filefd_allocated|node_memory_Buffers_bytes|node_memory_Cached_bytes|node_memory_MemFree_bytes|node_memory_SwapTotal_bytes|node_memory_SwapFree_bytes|node_load1|node_load5|node_load15|node_context_switches_total|node_intr_total|node_timex_estimated_error_seconds|node_timex_maxerror_seconds|node_network_receive_errs_total|node_network_transmit_errs_total|node_network_receive_drop_total|node_network_transmit_drop_total|node_netstat_Tcp_CurrEstab|node_nf_conntrack_entries|node_nf_conntrack_entries_limit|node_filesystem_avail_bytes|node_filesystem_size_bytes|node_filesystem_files_free|node_disk_read_bytes_total|node_disk_written_bytes_total|node_disk_reads_completed_total|node_disk_writes_completed_total|node_disk_io_now|node_filesystem_device_error|node_cpu_seconds_total|node_memory_MemTotal_bytes|node_memory_MemAvailable_bytes|node_network_receive_bytes_total|node_network_transmit_bytes_total|node_network_receive_packets_total|node_network_transmit_packets_total)
+            sourceLabels: [__name__]
+  kube-state-metrics:
+    prometheus:
+      monitor:
+        interval: "15s"
+        metricRelabelings:
+          - action: keep
+            regex: (kube_pod_info|kube_node_status_condition|kube_node_status_allocatable|kube_ingress_path|kube_node_spec_unschedulable|kube_node_spec_taint|kube_pod_container_resource_requests|kube_pod_container_resource_limits|kube_pod_container_status_restarts_total|kube_pod_container_info|kube_pod_created|kube_node_info|kube_namespace_created|kube_pod_labels|kube_pod_status_phase|kube_pod_container_status_running|kube_service_info|kube_namespace_labels|kube_endpoint_info|kube_deployment_labels|kube_statefulset_labels|kube_daemonset_labels|kube_persistentvolumeclaim_info|kube_pod_spec_volumes_persistentvolumeclaims_info|kube_hpa_labels|kube_configmap_info|kube_secret_info|kube_networkpolicy_labels)
+            sourceLabels: [__name__]
+    metricLabelsAllowlist:
+      - pods=[*]
+
   grafana:
     fullnameOverride: "grafana"
     enabled: true
     # Admin user/password from Secret (runbook §3). Keys: admin-user, admin-password.
     admin:
       existingSecret: grafana-admin
+    # GitHub OAuth: client_id/secret from Secret grafana-secret (keys GF_AUTH_GITHUB_* and GF_AUTH_GENERIC_OAUTH_*).
+    # Secret must be manually created in cluster from manifests/grafana-secret.example.yaml (Bitwarden: Observability/Grafana OIDC Client).
+    envFromSecret: grafana-secret
+    # Existing PVC: disable init chown to avoid Permission denied on png/pdf/csv dirs.
+    initChownData:
+      enabled: false
     # Only our provisioned dashboards (customGrafana.dashboardFiles); stack default dashboards not loaded. Add others manually in UI.
     defaultDashboardsEnabled: false
     image:
@@ -149,21 +223,27 @@ kube-prometheus-stack:
       size: 5Gi
       accessModes:
         - ReadWriteOnce
-      storageClassName: null
+      storageClassName: "YOUR_STORAGE_CLASS"
     # Admin user/password from Secret grafana-admin (see runbook §3); not stored in repo.
     # Logs Drilldown, Metrics Drilldown, Traces, Pyroscope are all core apps in
     # Grafana 12.x — do NOT list them in plugins: (GF_INSTALL_PLUGINS) or an
     # external download will shadow the built-in version and break routing.
-    plugins: []
+    plugins:
+      - victoriametrics-logs-datasource
     # Allow editing and deleting provisioned dashboards (stack and custom).
     sidecar:
+      datasources:
+        enabled: true
+        defaultDatasourceEnabled: false
+        isDefaultDatasource: false
       dashboards:
         provider:
           allowUiUpdates: true
           disableDeletion: false
-    # Ingress (same pattern as k8s-infra: APISIX). Create TLS secret e.g. grafana-observability-tls in namespace observability.
+        SCProvider: false
+    # Legacy Ingress (APISIX). Deprecated in infra cluster (Gateway API is used instead).
     ingress:
-      enabled: true
+      enabled: false
       ingressClassName: apisix
       hosts:
         - grafana.yourdomain.tld
@@ -185,18 +265,62 @@ kube-prometheus-stack:
       # exploreMetricsRelatedLogs: pivot from Metrics Drilldown to related logs
       feature_toggles:
         enable: exploreLogsShardSplitting, exploreMetricsRelatedLogs
+      # auth.auto_assign_org kept enabled, but primary org is now named "YOUR_ORG" (id=1).
+      # org_mapping assigns users to YOUR_ORG + mission orgs on every login; org names must not contain spaces.
+      auth:
+        auto_assign_org: true
+        auto_assign_org_id: 1
+      # GitHub OAuth — aligned with k8s-infra cluster/applications/templates/prometheus.yaml.
+      # client_id / client_secret loaded from envFromSecret (grafana-secret); not hardcoded here.
+      # org_mapping requires Grafana orgs to be pre-created — see templates/grafana-org-bootstrap.yaml.
+      auth.github:
+        enabled: true
+        scopes: user:email,read:org
+        auth_url: https://github.com/login/oauth/authorize
+        token_url: https://github.com/login/oauth/access_token
+        api_url: https://api.github.com/user
+        role_attribute_path: contains(groups[*], '@YOUR_GITHUB_ORG/assembly') && 'Admin' || 'Viewer'
+        allow_sign_up: true
+        auto_login: false
+        # Ensure org roles and org_mapping are re-evaluated on every login for existing users.
+        # Without this, Grafana skips role sync for previously seen users.
+        skip_org_role_sync: false
+        # team_ids removed: allowed_organizations already gates access to YOUR_GITHUB_ORG members only.
+        # Keeping team_ids would block all non-Assembly members from logging in.
+        allowed_organizations: ["YOUR_GITHUB_ORG"]
+        # org_mapping: each mission team is Admin in their own org, Viewer in all others.
+        # "*:YOUR_ORG:Viewer" baseline ensures every authenticated YOUR_GITHUB_ORG member lands in YOUR_ORG (id=1).
+        # Assembly is Admin in YOUR_ORG since it is the platform team.
+        # No spaces in any org name — Grafana uses space as separator in this field.
+        # org_mapping order matters: specific team rules must come BEFORE wildcards.
+        # "*:<org>:Viewer" for mission orgs would override team-specific Admin rules
+        # because Grafana applies the first match. Use specific team rules only for
+        # mission orgs; "*:YOUR_ORG:Viewer" covers the shared org for all users.
+        org_mapping: >-
+          @YOUR_GITHUB_ORG/assembly:YOUR_ORG:Admin
+          @YOUR_GITHUB_ORG/assembly:Assembly:Admin
+          @YOUR_GITHUB_ORG/access:Access:Admin
+          @YOUR_GITHUB_ORG/application:Application:Admin
+          @YOUR_GITHUB_ORG/cloud:Cloud:Admin
+          @YOUR_GITHUB_ORG/conversion:Conversion:Admin
+          *:YOUR_ORG:Viewer
+          *:Access:Viewer
+          *:Application:Viewer
+          *:Assembly:Viewer
+          *:Cloud:Viewer
+          *:Conversion:Viewer
     additionalDataSources:
-      - name: Loki
-        uid: loki
-        type: loki
-        url: http://observability-central-loki:3100
-        access: proxy
-        isDefault: false
       # Victoria Metrics: new stack (OTel → VM → Grafana). PromQL compatible.
       - name: Victoria Metrics
         uid: victoria-metrics
         type: prometheus
-        url: http://observability-central-victoria-metrics-single:8428
+        url: http://observability-central-victoria-metrics-single-server:8428
+        access: proxy
+        isDefault: false
+      - name: Victoria Logs
+        uid: victoria-logs
+        type: victoriametrics-logs-datasource
+        url: http://observability-central-victoria-logs-single-server:9428
         access: proxy
         isDefault: false
     # Mount our dashboards/alerting/plugins in separate paths to avoid conflict with chart sidecar (sc-dashboard-provider)
@@ -205,10 +329,6 @@ kube-prometheus-stack:
         mountPath: /etc/grafana/provisioning/dashboards/observability-dashboards.yml
         subPath: dashboards.yml
         configMap: grafana-dashboards-provider
-        readOnly: true
-      - name: dashboards-json
-        mountPath: /etc/grafana/provisioning/dashboards/observability-json
-        configMap: grafana-dashboards-json
         readOnly: true
       - name: alerting
         mountPath: /etc/grafana/provisioning/alerting
@@ -221,132 +341,480 @@ kube-prometheus-stack:
         readOnly: true
 
   alertmanager:
-    # Disabled if your cluster has Service IP CIDR conflicts; enable when resolved.
+    # Disabled: when enabled, the cluster fails with "failed to allocate a serviceIP" (CIDR YOUR_CLUSTER_SERVICE_CIDR vs existing IPs). Enable when the service IP range is fixed.
     enabled: false
     # alertmanagerSpec: { replicas: 1, retention: 120h }
 
   defaultRules:
     create: true
 
-  kube-state-metrics:
-    enabled: true
-
   nodeExporter:
     enabled: true
 
-loki:
-  enabled: true
-  deploymentMode: SingleBinary
-  nameOverride: "observability-central-loki"
-  fullnameOverride: "observability-central-loki"
-  loki:
-    auth_enabled: false
-    # Note: OTel→Loki "message larger than max" is mitigated by reducing batch size in otelCollector config (see config/otelcol-config.yaml).
-    commonConfig:
-      replication_factor: 1
-    storage:
-      type: filesystem
-    schemaConfig:
-      configs:
-        - from: "2025-09-03"
-          store: tsdb
-          object_store: filesystem
-          schema: v13
-          index:
-            prefix: index_
-            period: 24h
-    limits_config:
-      reject_old_samples: true
-      reject_old_samples_max_age: 168h
-      retention_period: 168h
-      allow_structured_metadata: true
-      # Required for Logs Drilldown app (volume/service view); Explore uses query API and works without this
-      volume_enabled: true
-      discover_log_levels: true
-      # Label(s) used by Logs Drilldown for "service" list; we send service_name and k8s namespace/pod/container
-      discover_service_name:
-        - service_name
-        - k8s_namespace_name
-        - job
-      ingestion_rate_mb: 16
-      ingestion_burst_size_mb: 32
-    # Required for Logs Drilldown "Patterns" tab (Loki 3.1+); see https://grafana.com/docs/plugins/grafana-lokiexplore-app/latest/troubleshooting/
-    pattern_ingester:
-      enabled: true
-  # Disable gateway (we use Loki service directly); saves resources
-  gateway:
-    enabled: false
-  # Disable canary (not needed for single-binary); saves 5 DaemonSet pods
-  lokiCanary:
-    enabled: false
-  singleBinary:
-    replicas: 1
-    persistence:
-      enabled: true
-      size: 20Gi
-  read:
-    replicas: 0
-  write:
-    replicas: 0
-  backend:
-    replicas: 0
-  test:
-    enabled: false
-  # Disable memcached caches to avoid high memory use on small nodes (e.g. chunks-cache was ~61% of node memory)
-  chunksCache:
-    enabled: false
-  resultsCache:
-    enabled: false
-  monitoring:
-    selfMonitoring:
-      enabled: false
-      grafanaAgent:
-        installOperator: false
-  # Avoid SSL errors when the rules sidecar talks to the Kubernetes API (cluster CA may lack key usage extension).
-  sidecar:
-    skipTlsVerify: true
 
-# Victoria Metrics Single: backend for the new stack (OTel gateway → VM → Grafana). Prometheus stays independent.
-# Optionally pin Victoria Metrics to a node with enough disk/RAM (nodeSelector in subchart values if needed).
+# Victoria Metrics Single
 victoria-metrics-single:
   enabled: true
+
   server:
-    fullnameOverride: "observability-central-victoria-metrics-single"
+    # -- Init containers for VM single pod
+    # initContainers:
+    #   - name: vmrestore
+    #     image: victoriametrics/vmrestore:latest
+    #     env:
+    #       - name: AWS_ACCESS_KEY_ID
+    #         valueFrom:
+    #           secretKeyRef:
+    #             name: s3-credentials
+    #             key: key
+    #       - name: AWS_SECRET_ACCESS_KEY
+    #         valueFrom:
+    #           secretKeyRef:
+    #             name: s3-credentials
+    #             key: secret
+    #     volumeMounts:
+    #       - mountPath: /storage
+    #         name: server-volume
+    #     args:
+    #     - -storageDataPath=/storage
+    #     - -customS3Endpoint=https://objectstore.yourdomain.tld:2222
+    #     - -src=s3://YOUR_VM_BACKUP_BUCKET/YOUR_VM_BACKUP_BUCKET/{{ now | date "2006-01-02" }}
+
+    podLabels:
+      app: server
+    # fullnameOverride: "observability-central-victoria-metrics-single"
     persistentVolume:
       enabled: true
       size: 20Gi
+      storageClassName: "YOUR_STORAGE_CLASS"
 
-# OTel Collector Gateway (Assembly): receives OTLP from Cloud agents; exports metrics to Victoria Metrics, logs to Loki.
-# Expose via Ingress (HTTPS) so Cloud can send to https://otel.<assembly-domain>/ (OTLP HTTP on 4318).
-otelCollector:
+# Victoria Metrics Cluster
+# Trying to rename the key because of the CronJob
+victoria-metrics-cluster:
   enabled: true
-  replicas: 2
-  # Resources to avoid OOM/eviction; HPA can scale from minReplicas up to maxReplicas.
-  resources:
-    requests:
-      cpu: 100m
-      memory: 256Mi
-    limits:
-      cpu: "1"
-      memory: 512Mi
-  # HPA: scale on CPU when more agents send OTLP (min 2 for HA, max 5).
-  hpa:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 5
-    targetCPUUtilizationPercentage: 70
-  # Victoria Metrics write endpoint (metrics pipeline). VM is deployed by victoria-metrics-single subchart.
-  victoriaMetricsWriteEndpoint: "http://observability-central-victoria-metrics-single:8428/api/v1/write"
+
+  deployment:
+    persistentVolume:
+      enabled: true
+      size: 5Gi
+      storageClassName: "YOUR_STORAGE_CLASS"
+
+  vmstorage:
+    # -- Init containers for VM single pod
+    # initContainers:
+    #   - name: vmrestore
+    #     image: victoriametrics/vmrestore:latest
+    #     env:
+    #       - name: AWS_ACCESS_KEY_ID
+    #         valueFrom:
+    #           secretKeyRef:
+    #             name: s3-credentials
+    #             key: key
+    #       - name: AWS_SECRET_ACCESS_KEY
+    #         valueFrom:
+    #           secretKeyRef:
+    #             name: s3-credentials
+    #             key: secret
+    #     volumeMounts:
+    #       - mountPath: /source
+    #         name: server-volume
+    #     args:
+    #     - -storageDataPath=/source
+    #     - -customS3Endpoint=https://objectstore.yourdomain.tld:2222
+    #     - -src=s3://YOUR_VM_BACKUP_BUCKET/vm-cluster-metrics/$HOSTNAME/{{ now | date "2006-01-02" }}
+
+    fullnameOverride: "vm-cluster-storage"
+    persistentVolume:
+      enabled: true
+      size: 20Gi
+      storageClassName: "YOUR_STORAGE_CLASS"
+
+# Victoria Logs Single
+victoria-logs-single:
+  enabled: true
+  # fullnameOverride: "observability-central-victoria-logs-single"
+  server:
+    persistentVolume:
+      enabled: true
+      size: 20Gi
+      storageClassName: "YOUR_STORAGE_CLASS"
+
+# Victoria Logs Cluster (production). Single remains available for dev/staging.
+# To enable: set victoria-logs-cluster.enabled: true in the environment overlay.
+# OTel logs_endpoint must be overridden to vlinsert in the overlay (see MR 3).
+# Grafana victoria-logs datasource URL must be overridden to vlselect in the overlay.
+victoria-logs-cluster:
+  enabled: false
+
+  vlinsert:
+    replicaCount: 2
+
+  vlselect:
+    replicaCount: 2
+
+  vlstorage:
+    replicaCount: 2
+    persistentVolume:
+      enabled: true
+      size: 20Gi
+      storageClassName: "YOUR_STORAGE_CLASS"   # override in assembly overlay: csi-cinder-sc-retain
+
+# Official OTel Collector subchart config (used when otelCollector.useChart=true).
+# Mirrors the custom deployment config: same pipelines, same exporters, same RBAC.
+# Canary: deploy as a separate release (otel-collector-canary) before cutover.
+otel-deploy:
+
+  enabled: true
+
+  mode: deployment
+  # clusterMetrics preset requires replicaCount=1 to avoid duplicate cluster metrics.
+  # OTLP ingestion HA is handled at the Gateway/load-balancer level.
+  replicaCount: 1
+  fullnameOverride: otel-collector-central
+
   image:
     repository: otel/opentelemetry-collector-contrib
     tag: "0.131.0"
-  service:
-    type: ClusterIP
-  # Ingress: exposes the OTel gateway over HTTPS so Cloud uses only this endpoint (master_otlp_http).
-  # Also apply manifests/otel-collector-ingress-tls-apisix.yaml (Certificate + ApisixTls) in the cluster.
-  ingress:
-    enabled: true
-    host: "otel.yourdomain.tld"
-    className: "apisix"
-    tls: true
-    tlsSecretName: "otel-collector-tls"
+
+  resources:
+    requests:
+      memory: 2Gi
+    limits:
+      memory: 4Gi
+
+  # clusterMetrics preset: auto-configures k8s_cluster receiver + ClusterRole rules.
+  presets:
+    clusterMetrics:
+      enabled: true
+    kubernetesAttributes:
+      enabled: false
+
+  # health_check extension uses /ready path; override chart default probes (which use /).
+  livenessProbe:
+    httpGet:
+      path: /ready
+      port: 13133
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: 13133
+
+  # Ports exposed by the collector service.
+  ports:
+    otlp:
+      enabled: true
+      containerPort: 4317
+      servicePort: 4317
+      protocol: TCP
+    otlp-http:
+      enabled: true
+      containerPort: 4318
+      servicePort: 4318
+      protocol: TCP
+    metrics:
+      enabled: true
+      containerPort: 8888
+      servicePort: 8888
+      protocol: TCP
+
+  config:
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+        path: /ready
+
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+            cors:
+              allowed_origins: ["http://*"]
+      # k8s_cluster is injected automatically by the clusterMetrics preset above.
+      prometheus:
+        config:
+          # TODO: Remove. Prometheus scrape jobs are deployment specific, and should be defined at point of install, and not in the helm default values.
+          scrape_configs:
+            - job_name: federate
+              honor_labels: true
+              metrics_path: /federate
+              params:
+                'match[]':
+                  - '{job="prometheus"}'
+                  - '{job="otel-collector"}'
+                  - '{job="kubelet"}'
+                  - '{job="grafana"}'
+                  - '{job="node-exporter"}'
+                  - '{job="kube-state-metrics"}'
+              static_configs:
+                - targets:
+                    - observability-central-kube-prometheus.observability.svc.cluster.local:9090
+            - job_name: blackbox-https
+              metrics_path: /probe
+              params:
+                module: [https_2xx]
+              static_configs:
+                - targets:
+                    - https://argocd.yourdomain.tld
+                    - https://grafana.yourdomain.tld
+                    - https://otel.yourdomain.tld
+                    - https://vault.yourdomain.tld
+              relabel_configs:
+                - source_labels: [__address__]
+                  target_label: __param_target
+                - source_labels: [__param_target]
+                  target_label: instance
+                - target_label: __address__
+                  replacement: blackbox-exporter:9115
+            # No longer working? Should be coming from cloud as opposed to our direct scrapes
+            # - job_name: cumulus-snmp-interfaces
+            #   metrics_path: /snmp
+            #   params:
+            #     module: [if_mib]
+            #     auth: [cumulus_v3]
+            #   static_configs:
+            #     - targets: [192.0.2.10, 192.0.2.11, 192.0.2.12, 192.0.2.13]
+            #   relabel_configs:
+            #     - source_labels: [__address__]
+            #       target_label: __param_target
+            #     - source_labels: [__param_target]
+            #       target_label: instance
+            #     - target_label: __address__
+            #       replacement: snmp-exporter:9116
+            #     - source_labels: []
+            #       target_label: __metrics_path__
+            #       replacement: /snmp
+            # - job_name: cumulus-snmp-lldp
+            #   metrics_path: /snmp
+            #   params:
+            #     module: [cumulus_lldp]
+            #     auth: [cumulus_v3]
+            #   static_configs:
+            #     - targets: [192.0.2.10, 192.0.2.11, 192.0.2.12, 192.0.2.13]
+            #   relabel_configs:
+            #     - source_labels: [__address__]
+            #       target_label: __param_target
+            #     - source_labels: [__param_target]
+            #       target_label: instance
+            #     - target_label: __address__
+            #       replacement: snmp-exporter:9116
+            #     - source_labels: []
+            #       target_label: __metrics_path__
+            #       replacement: /snmp
+
+    processors:
+      resource/central-cluster-identity:
+        attributes:
+          - action: upsert
+            key: cluster
+            value: inf
+          - action: upsert
+            key: environment
+            value: production
+      attributes/ensure-service-name:
+        actions:
+          - action: insert
+            key: service.name
+            from_attribute: host.name
+      batch:
+        send_batch_size: 500
+        timeout: 2s
+      batch/logs:
+        send_batch_size: 100
+        timeout: 2s
+      attributes/map-labels:
+        actions:
+          - action: upsert
+            key: CLIENT
+            from_attribute: customer
+          - action: upsert
+            key: ENVIRONMENT
+            from_attribute: environment
+          - action: upsert
+            key: COUNTRY
+            from_attribute: country
+          - action: upsert
+            key: SERVICE_NAME
+            from_attribute: service.name
+      attributes/copy-k8s-labels:
+        actions:
+          - action: insert
+            key: namespace
+            from_attribute: k8s.namespace.name
+          - action: insert
+            key: pod
+            from_attribute: k8s.pod.name
+          - action: insert
+            key: node
+            from_attribute: k8s.node.name
+          - action: insert
+            key: container
+            from_attribute: k8s.container.name
+          - action: insert
+            key: deployment
+            from_attribute: k8s.deployment.name
+
+    exporters:
+      prometheusremotewrite/victoria-metrics:
+        endpoint: http://observability-central-victoria-metrics-single-server:8428/api/v1/write
+        resource_to_telemetry_conversion:
+          enabled: true
+        tls:
+          insecure: true
+      otlphttp/victorialogs:
+        compression: gzip
+        encoding: proto
+        logs_endpoint: http://observability-central-victoria-logs-single-server.observability.svc.cluster.local:9428/insert/opentelemetry/v1/logs
+        tls:
+          insecure: true
+      otlphttp/victoriametrics:
+        metrics_endpoint: http://observability-central-victoria-metrics-single-server:8428/opentelemetry/v1/metrics
+        tls:
+          insecure: true
+
+    service:
+      telemetry:
+        metrics:
+          readers:
+            - pull:
+                exporter:
+                  prometheus:
+                    host: "0.0.0.0"
+                    port: 8888
+      extensions: [health_check]
+
+      # otlp logs and metrics should not by default recieve the central cluster identity. As they might not come from this cluster.
+      pipelines:
+        metrics:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [prometheusremotewrite/victoria-metrics]
+        metrics/inf-cluster:
+          receivers: [prometheus]
+          processors: [batch, resource/central-cluster-identity]
+          exporters: [prometheusremotewrite/victoria-metrics]
+        metrics/otel:
+          receivers: [k8s_cluster]
+          processors: [batch, resource/central-cluster-identity]
+          exporters: [otlphttp/victoriametrics]
+        logs:
+          receivers: [otlp]
+          processors: [attributes/copy-k8s-labels, batch/logs]
+          exporters: [otlphttp/victorialogs]
+
+otel-daemonset:
+
+  mode: daemonset
+
+  fullnameOverride: opentelemetry-daemonset
+
+  image:
+    repository: "otel/opentelemetry-collector-contrib"
+
+  presets:
+    logsCollection:
+      enabled: true
+    kubeletMetrics:
+      enabled: true
+    kubernetesAttributes:
+      enabled: true
+    hostMetrics:
+      enabled: true
+
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+            cors:
+              allowed_origins: ["http://*"]
+
+      # Enabling the optional metrics we want from these recievers
+      kubeletstats:
+        metrics:
+          k8s.node.uptime:
+            enabled: true
+          k8s.volume.available:
+            enabled: true
+          k8s.volume.capacity:
+            enabled: true
+        metric_groups: [node, pod, container, volume]
+        extra_metadata_labels:
+          - k8s.volume.type
+
+      hostmetrics:
+        scrapers:
+          cpu:
+            metrics:
+              system.cpu.logical.count:
+                enabled: true
+              system.cpu.physical.count:
+                enabled: true
+
+    extensions: {}
+    
+    processors:
+      resource/cluster-identity:
+        attributes:
+          - action: upsert
+            key: cluster
+            value: inf
+          - key: k8s.node.name
+            value: ${K8S_NODE_NAME}
+            action: upsert
+
+      attributes/copy-k8s-labels:
+        actions:
+          - action: insert
+            key: namespace
+            from_attribute: k8s.namespace.name
+          - action: insert
+            key: pod
+            from_attribute: k8s.pod.name
+          - action: insert
+            key: node
+            from_attribute: k8s.node.name
+          - action: insert
+            key: container
+            from_attribute: k8s.container.name
+          - action: insert
+            key: deployment
+            from_attribute: k8s.deployment.name
+
+      batch/logs:
+        send_batch_size: 100
+        timeout: 2s
+
+      resourcedetection/system:
+        detectors: [system]
+        override: false
+
+    exporters:
+      debug:
+        verbosity: detailed
+      otlphttp/victorialogs:
+        compression: gzip
+        encoding: proto
+        logs_endpoint: http://observability-central-victoria-logs-single-server.observability.svc.cluster.local:9428/insert/opentelemetry/v1/logs
+        tls:
+          insecure: true
+      otlphttp/victoriametrics:
+        metrics_endpoint: http://observability-central-victoria-metrics-single-server:8428/opentelemetry/v1/metrics
+        tls:
+          insecure: true
+      
+    service:
+      pipelines:
+        logs:
+          receivers: [otlp]
+          processors: [attributes/copy-k8s-labels, batch/logs]
+          exporters: [otlphttp/victorialogs]
+        metrics:
+          receivers: [kubeletstats, hostmetrics]
+          processors: [batch, k8sattributes, resourcedetection/system, resource/cluster-identity]
+          exporters: [debug, otlphttp/victoriametrics]

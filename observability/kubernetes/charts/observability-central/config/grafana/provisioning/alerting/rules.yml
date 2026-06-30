@@ -953,6 +953,377 @@ groups:
           isPaused: false
           notification_settings:
             receiver: observability-default
+    - orgId: 1
+      name: observability-stack
+      folder: Observability Stack
+      interval: 1m
+      rules:
+        - uid: obs-victoria-metrics-up
+          title: VictoriaMetrics ingestion down
+          condition: C
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 300
+                to: 0
+              datasourceUid: victoria-metrics
+              model:
+                datasource:
+                  type: prometheus
+                  uid: victoria-metrics
+                editorMode: code
+                expr: up{job="observability-central-victoria-metrics-single-server"} == 0
+                instant: true
+                refId: A
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                  - evaluator:
+                      params:
+                        - 0
+                      type: gt
+                    operator:
+                      type: and
+                    query:
+                      params:
+                        - C
+                    reducer:
+                      params: []
+                      type: last
+                    type: query
+                datasource:
+                  type: __expr__
+                  uid: __expr__
+                expression: A
+                refId: C
+                type: threshold
+          noDataState: Alerting
+          execErrState: Error
+          for: 2m
+          annotations:
+            summary: "VictoriaMetrics is down"
+            description: "Victoria Metrics scrape target {{ $labels.instance }} has been down for more than 2 minutes. Metrics ingestion is interrupted."
+          labels:
+            severity: critical
+          isPaused: false
+          notification_settings:
+            receiver: observability-default
+        - uid: obs-otel-deploy-up
+          title: OTel gateway (otel-deploy) down
+          condition: C
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 300
+                to: 0
+              datasourceUid: victoria-metrics
+              model:
+                datasource:
+                  type: prometheus
+                  uid: victoria-metrics
+                editorMode: code
+                expr: up{job="otel-deploy"} == 0
+                instant: true
+                refId: A
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                  - evaluator:
+                      params:
+                        - 0
+                      type: gt
+                    operator:
+                      type: and
+                    query:
+                      params:
+                        - C
+                    reducer:
+                      params: []
+                      type: last
+                    type: query
+                datasource:
+                  type: __expr__
+                  uid: __expr__
+                expression: A
+                refId: C
+                type: threshold
+          noDataState: Alerting
+          execErrState: Error
+          for: 2m
+          annotations:
+            summary: "OTel gateway (otel-deploy) is down"
+            description: "The OTel Collector gateway pod is not responding. OTLP log/metric ingestion from edge clusters is interrupted."
+          labels:
+            severity: critical
+          isPaused: false
+          notification_settings:
+            receiver: observability-default
+        - uid: obs-pod-crashlooping
+          title: Pod CrashLoopBackOff (observability ns)
+          condition: C
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 600
+                to: 0
+              datasourceUid: victoria-metrics
+              model:
+                datasource:
+                  type: prometheus
+                  uid: victoria-metrics
+                editorMode: code
+                expr: increase(kube_pod_container_status_restarts_total{namespace="observability"}[10m]) > 3
+                instant: true
+                refId: A
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                  - evaluator:
+                      params:
+                        - 0
+                      type: gt
+                    operator:
+                      type: and
+                    query:
+                      params:
+                        - C
+                    reducer:
+                      params: []
+                      type: last
+                    type: query
+                datasource:
+                  type: __expr__
+                  uid: __expr__
+                expression: A
+                refId: C
+                type: threshold
+          noDataState: NoData
+          execErrState: Error
+          for: 1m
+          annotations:
+            summary: "Pod {{ $labels.pod }} in CrashLoopBackOff (observability)"
+            description: "Pod {{ $labels.pod }} container {{ $labels.container }} has restarted more than 3 times in the last 10 minutes."
+          labels:
+            severity: warning
+          isPaused: false
+          notification_settings:
+            receiver: observability-default
+        - uid: obs-pvc-almost-full
+          title: PVC almost full (observability ns)
+          condition: C
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 300
+                to: 0
+              datasourceUid: victoria-metrics
+              model:
+                datasource:
+                  type: prometheus
+                  uid: victoria-metrics
+                editorMode: code
+                expr: |
+                  (
+                    kubelet_volume_stats_used_bytes{namespace="observability"}
+                    / kubelet_volume_stats_capacity_bytes{namespace="observability"}
+                  ) * 100 > 85
+                instant: true
+                refId: A
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                  - evaluator:
+                      params:
+                        - 0
+                      type: gt
+                    operator:
+                      type: and
+                    query:
+                      params:
+                        - C
+                    reducer:
+                      params: []
+                      type: last
+                    type: query
+                datasource:
+                  type: __expr__
+                  uid: __expr__
+                expression: A
+                refId: C
+                type: threshold
+          noDataState: NoData
+          execErrState: Error
+          for: 10m
+          annotations:
+            summary: "PVC {{ $labels.persistentvolumeclaim }} is >85% full"
+            description: "Volume {{ $labels.persistentvolumeclaim }} in namespace observability is running out of space. Used: {{ $value | printf \"%.1f\" }}%."
+          labels:
+            severity: warning
+          isPaused: false
+          notification_settings:
+            receiver: observability-default
+    - orgId: 1
+      name: edge-health
+      folder: Edge / Gateway Alerts
+      interval: 1m
+      rules:
+        - uid: edge-endpoint-down
+          title: Public endpoint down
+          condition: C
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 300
+                to: 0
+              datasourceUid: prometheus
+              model:
+                datasource:
+                  type: prometheus
+                  uid: prometheus
+                editorMode: code
+                expr: probe_success{job="blackbox-https"} == 0
+                instant: true
+                refId: A
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                  - evaluator:
+                      params:
+                        - 0
+                      type: gt
+                    operator:
+                      type: and
+                    query:
+                      params:
+                        - C
+                    reducer:
+                      params: []
+                      type: last
+                    type: query
+                datasource:
+                  type: __expr__
+                  uid: __expr__
+                expression: A
+                refId: C
+                type: threshold
+          noDataState: NoData
+          execErrState: Error
+          for: 2m
+          annotations:
+            summary: "Public endpoint {{ $labels.instance }} is DOWN"
+            description: "Blackbox probe failed for {{ $labels.instance }}. Check Gateway/HTTPRoute and backend pod."
+          labels:
+            severity: critical
+          isPaused: false
+          notification_settings:
+            receiver: observability-default
+        - uid: edge-cert-expiry-warning
+          title: TLS certificate expiring soon (< 21 days)
+          condition: C
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 300
+                to: 0
+              datasourceUid: prometheus
+              model:
+                datasource:
+                  type: prometheus
+                  uid: prometheus
+                editorMode: code
+                expr: (probe_ssl_earliest_cert_expiry{job="blackbox-https"} - time()) / 86400 < 21
+                instant: true
+                refId: A
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                  - evaluator:
+                      params:
+                        - 0
+                      type: gt
+                    operator:
+                      type: and
+                    query:
+                      params:
+                        - C
+                    reducer:
+                      params: []
+                      type: last
+                    type: query
+                datasource:
+                  type: __expr__
+                  uid: __expr__
+                expression: A
+                refId: C
+                type: threshold
+          noDataState: NoData
+          execErrState: Error
+          for: 1h
+          annotations:
+            summary: "TLS cert for {{ $labels.instance }} expires in < 21 days"
+            description: "Certificate for {{ $labels.instance }} will expire soon. Check cert-manager and Gateway listener."
+          labels:
+            severity: warning
+          isPaused: false
+          notification_settings:
+            receiver: observability-default
+        - uid: edge-cert-expiry-critical
+          title: TLS certificate expiring soon (< 7 days)
+          condition: C
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 300
+                to: 0
+              datasourceUid: prometheus
+              model:
+                datasource:
+                  type: prometheus
+                  uid: prometheus
+                editorMode: code
+                expr: (probe_ssl_earliest_cert_expiry{job="blackbox-https"} - time()) / 86400 < 7
+                instant: true
+                refId: A
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                  - evaluator:
+                      params:
+                        - 0
+                      type: gt
+                    operator:
+                      type: and
+                    query:
+                      params:
+                        - C
+                    reducer:
+                      params: []
+                      type: last
+                    type: query
+                datasource:
+                  type: __expr__
+                  uid: __expr__
+                expression: A
+                refId: C
+                type: threshold
+          noDataState: NoData
+          execErrState: Error
+          for: 30m
+          annotations:
+            summary: "TLS cert for {{ $labels.instance }} expires in < 7 days — URGENT"
+            description: "Certificate for {{ $labels.instance }} is about to expire. Immediate action required."
+          labels:
+            severity: critical
+          isPaused: false
+          notification_settings:
+            receiver: observability-default
         - uid: few2h4mnbbq4ga
           title: Discards Egress STP filter
           condition: C
@@ -1040,3 +1411,278 @@ groups:
           isPaused: false
           notification_settings:
             receiver: observability-default
+
+    - orgId: 2
+      name: k8s-resource-alerts
+      folder: K8S Alerts
+      interval: 1m
+      rules:
+        - uid: k8s-cpu-high
+          title: "Node CPU Usage High (>80%)"
+          condition: B
+          for: 5m
+          noDataState: NoData
+          execErrState: OK
+          labels:
+            severity: warning
+            team: assembly
+            dashboard: k8s-resource-overview
+          annotations:
+            description: "Node {{ $labels.node }} CPU usage is above 80%. Check running pods."
+            summary: "High CPU on node {{ $labels.node }}"
+          data:
+            - refId: A
+              datasourceUid: victoria-metrics
+              queryType: ""
+              relativeTimeRange:
+                from: 600
+                to: 0
+              model:
+                refId: A
+                datasource:
+                  type: prometheus
+                  uid: victoria-metrics
+                expr: "sum(rate(container_cpu_usage_seconds_total{container!=\"\",id!=\"\"}[5m])) by (node) / sum(kube_node_status_allocatable{resource=\"cpu\",unit=\"core\"}) by (node) * 100"
+                instant: true
+                intervalMs: 60000
+                maxDataPoints: 43200
+            - refId: B
+              datasourceUid: __expr__
+              queryType: ""
+              relativeTimeRange:
+                from: 600
+                to: 0
+              model:
+                refId: B
+                type: threshold
+                datasource:
+                  type: __expr__
+                  uid: __expr__
+                conditions:
+                  - evaluator:
+                      type: gt
+                      params: [80]
+                    operator:
+                      type: and
+                    query:
+                      params: [A]
+                    reducer:
+                      type: last
+                      params: []
+                    type: query
+
+        - uid: k8s-memory-high
+          title: "Node Memory Usage High (>85%)"
+          condition: B
+          for: 5m
+          noDataState: NoData
+          execErrState: OK
+          labels:
+            severity: warning
+            team: assembly
+            dashboard: k8s-resource-overview
+          annotations:
+            description: "Node {{ $labels.node }} memory usage is above 85%."
+            summary: "High memory on node {{ $labels.node }}"
+          data:
+            - refId: A
+              datasourceUid: victoria-metrics
+              queryType: ""
+              relativeTimeRange:
+                from: 600
+                to: 0
+              model:
+                refId: A
+                datasource:
+                  type: prometheus
+                  uid: victoria-metrics
+                expr: "sum(container_memory_working_set_bytes{container!=\"\",id!=\"\"}) by (node) / sum(kube_node_status_allocatable{resource=\"memory\",unit=\"byte\"}) by (node) * 100"
+                instant: true
+                intervalMs: 60000
+                maxDataPoints: 43200
+            - refId: B
+              datasourceUid: __expr__
+              queryType: ""
+              relativeTimeRange:
+                from: 600
+                to: 0
+              model:
+                refId: B
+                type: threshold
+                datasource:
+                  type: __expr__
+                  uid: __expr__
+                conditions:
+                  - evaluator:
+                      type: gt
+                      params: [85]
+                    operator:
+                      type: and
+                    query:
+                      params: [A]
+                    reducer:
+                      type: last
+                      params: []
+                    type: query
+
+        - uid: k8s-pod-crashloop
+          title: "Pod CrashLoopBackOff (>3 restarts/15min)"
+          condition: B
+          for: 2m
+          noDataState: NoData
+          execErrState: OK
+          labels:
+            severity: critical
+            team: assembly
+            dashboard: k8s-resource-overview
+          annotations:
+            description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} restarted more than 3 times in last 15 min."
+            summary: "CrashLoop: {{ $labels.namespace }}/{{ $labels.pod }}"
+          data:
+            - refId: A
+              datasourceUid: victoria-metrics
+              queryType: ""
+              relativeTimeRange:
+                from: 900
+                to: 0
+              model:
+                refId: A
+                datasource:
+                  type: prometheus
+                  uid: victoria-metrics
+                expr: "increase(kube_pod_container_status_restarts_total[15m])"
+                instant: true
+                intervalMs: 60000
+                maxDataPoints: 43200
+            - refId: B
+              datasourceUid: __expr__
+              queryType: ""
+              relativeTimeRange:
+                from: 900
+                to: 0
+              model:
+                refId: B
+                type: threshold
+                datasource:
+                  type: __expr__
+                  uid: __expr__
+                conditions:
+                  - evaluator:
+                      type: gt
+                      params: [3]
+                    operator:
+                      type: and
+                    query:
+                      params: [A]
+                    reducer:
+                      type: last
+                      params: []
+                    type: query
+
+        - uid: k8s-pvc-full
+          title: "PVC Storage Almost Full (>80%)"
+          condition: B
+          for: 10m
+          noDataState: NoData
+          execErrState: OK
+          labels:
+            severity: warning
+            team: assembly
+            dashboard: k8s-resource-overview
+          annotations:
+            description: "PVC {{ $labels.persistentvolumeclaim }} in {{ $labels.namespace }} is above 80% capacity."
+            summary: "PVC {{ $labels.persistentvolumeclaim }} is almost full"
+          data:
+            - refId: A
+              datasourceUid: victoria-metrics
+              queryType: ""
+              relativeTimeRange:
+                from: 600
+                to: 0
+              model:
+                refId: A
+                datasource:
+                  type: prometheus
+                  uid: victoria-metrics
+                expr: "kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes * 100"
+                instant: true
+                intervalMs: 60000
+                maxDataPoints: 43200
+            - refId: B
+              datasourceUid: __expr__
+              queryType: ""
+              relativeTimeRange:
+                from: 600
+                to: 0
+              model:
+                refId: B
+                type: threshold
+                datasource:
+                  type: __expr__
+                  uid: __expr__
+                conditions:
+                  - evaluator:
+                      type: gt
+                      params: [80]
+                    operator:
+                      type: and
+                    query:
+                      params: [A]
+                    reducer:
+                      type: last
+                      params: []
+                    type: query
+
+        - uid: k8s-ns-cpu-spike
+          title: "Namespace CPU Spike (>0.5 cores)"
+          condition: B
+          for: 5m
+          noDataState: NoData
+          execErrState: OK
+          labels:
+            severity: warning
+            team: assembly
+            dashboard: k8s-resource-overview
+          annotations:
+            description: "Namespace {{ $labels.namespace }} is using more than 0.5 CPU cores."
+            summary: "CPU spike in namespace {{ $labels.namespace }}"
+          data:
+            - refId: A
+              datasourceUid: victoria-metrics
+              queryType: ""
+              relativeTimeRange:
+                from: 600
+                to: 0
+              model:
+                refId: A
+                datasource:
+                  type: prometheus
+                  uid: victoria-metrics
+                expr: "sum(irate(container_cpu_usage_seconds_total{container!=\"\",container!=\"POD\"}[2m])) by (namespace)"
+                instant: true
+                intervalMs: 60000
+                maxDataPoints: 43200
+            - refId: B
+              datasourceUid: __expr__
+              queryType: ""
+              relativeTimeRange:
+                from: 600
+                to: 0
+              model:
+                refId: B
+                type: threshold
+                datasource:
+                  type: __expr__
+                  uid: __expr__
+                conditions:
+                  - evaluator:
+                      type: gt
+                      params: [0.5]
+                    operator:
+                      type: and
+                    query:
+                      params: [A]
+                    reducer:
+                      type: last
+                      params: []
+                    type: query

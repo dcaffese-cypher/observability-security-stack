@@ -1,0 +1,53 @@
+{{- if .Values.vmBackupCluster.enabled }}
+
+{{- $replicas := int .Values.vmBackupCluster.replicas }}
+
+{{- $s3endpoint := .Values.vmBackupCluster.s3.endpoint}}
+{{- $s3bucket := .Values.vmBackupCluster.s3.bucket }}
+
+{{- $credentialSecret := .Values.vmBackupCluster.s3.credentialsSecret }}
+
+{{- range $i := until $replicas }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: vmbackup-cluster-daily-{{ $i }}
+  labels:
+    app.kubernetes.io/name: vm-backup-cluster
+    app.kubernetes.io/component: backup-cluster
+spec:
+  schedule: "0 0 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: vmbackup
+              image: victoriametrics/vmbackup:latest
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  TIMESTAMP=$(date +%Y-%m-%d)
+                  ./vmbackup-prod \
+                    -origin=s3://{{ $s3bucket }}/vm-cluster-metrics/vm-cluster-storage-{{ $i }}/latest \
+                    -customS3Endpoint={{ $s3endpoint }}  \
+                    -dst=s3://{{ $s3bucket }}/vm-cluster-metrics/vm-cluster-storage-{{ $i }}/$TIMESTAMP
+              env:
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ $credentialSecret }}
+                      key: key
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ $credentialSecret }}
+                      key: secret
+---
+{{- end }}
+{{- end }}

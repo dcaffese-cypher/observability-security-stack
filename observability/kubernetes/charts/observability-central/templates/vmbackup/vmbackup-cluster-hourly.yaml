@@ -1,0 +1,71 @@
+{{- if .Values.vmBackupCluster.enabled }}
+
+{{- $replicas := int .Values.vmBackupCluster.replicas }}
+
+{{- $svcName := .Values.vmBackupCluster.vmServiceName }}
+{{- $namespace := .Values.namespace | default "observability" }}
+{{- $s3endpoint := .Values.vmBackupCluster.s3.endpoint}}
+{{- $s3bucket := .Values.vmBackupCluster.s3.bucket }}
+
+{{- $credentialSecret := .Values.vmBackupCluster.s3.credentialsSecret }}
+
+{{- range $i := until $replicas }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: vmbackup-cluster-hourly-{{ $i }}
+  labels:
+    app.kubernetes.io/name: vm-backup-cluster
+    app.kubernetes.io/component: backup-cluster
+spec:
+  schedule: "0 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      app.kubernetes.io/name: victoria-metrics-cluster
+                      apps.kubernetes.io/pod-index: "{{ $i }}"
+                      app: vmstorage
+                  topologyKey: kubernetes.io/hostname
+          volumes:
+            - name: source-volume
+              persistentVolumeClaim:
+                claimName: vmstorage-volume-vm-cluster-storage-{{ $i }}
+          containers:
+            - name: vmbackup
+              image: victoriametrics/vmbackup:latest
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  ./vmbackup-prod \
+                    -storageDataPath=/source \
+                    -snapshot.createURL=http://vm-cluster-storage-{{ $i }}.{{ $svcName }}.{{ $namespace }}.svc.cluster.local:8482/snapshot/create \
+                    -customS3Endpoint={{ $s3endpoint }} \
+                    -dst=s3://{{ $s3bucket }}/vm-cluster-metrics/vm-cluster-storage-{{ $i }}/latest
+              volumeMounts:
+                - mountPath: /source
+                  name: source-volume
+              env:
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ $credentialSecret }}
+                      key: key
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ $credentialSecret }}
+                      key: secret
+---
+{{- end }}
+{{- end }}

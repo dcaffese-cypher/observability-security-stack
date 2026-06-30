@@ -2,11 +2,26 @@ dependencies:
 - name: kube-prometheus-stack
   repository: https://prometheus-community.github.io/helm-charts
   version: 75.5.0
-- name: loki
-  repository: https://grafana.github.io/helm-charts
-  version: 6.32.0
 - name: victoria-metrics-single
   repository: https://victoriametrics.github.io/helm-charts/
   version: 0.32.0
-digest: sha256:fa889e10fbf3466971124341a4c3927bc45b94d5403beeeb0a4335dae342167a
-generated: "2026-03-16T12:23:14.242758617Z"
+- name: victoria-logs-single
+  repository: https://victoriametrics.github.io/helm-charts/
+  version: 0.13.6
+- name: prometheus-blackbox-exporter
+  repository: https://prometheus-community.github.io/helm-charts
+  version: 9.1.0
+- name: opentelemetry-collector
+  repository: https://open-telemetry.github.io/opentelemetry-helm-charts
+  version: 0.147.1
+- name: opentelemetry-collector
+  repository: https://open-telemetry.github.io/opentelemetry-helm-charts
+  version: 0.147.1
+- name: victoria-metrics-cluster
+  repository: https://victoriametrics.github.io/helm-charts/
+  version: 0.44.0
+- name: victoria-logs-cluster
+  repository: https://victoriametrics.github.io/helm-charts/
+  version: 0.2.7
+digest: sha256:6bef807115bd49923e6849dc253b6342e7cd232877ff7e196738b85d9f5c8045
+generated: "2026-06-23T18:05:29.199107713+02:00"

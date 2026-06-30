@@ -1,0 +1,99 @@
+backup:
+  enabled: false
+
+  customS3Endpoint: https://objectstore.yourdomain.tld:2222 
+  s3SecretName: s3-credentials
+  BackupBucket: vmmetrics-testbackup
+  HourylPath: latest
+
+# Figure out how to template this in values.yaml
+# Default init container to ensure we are using the backups produced
+victoria-metrics-single:
+  server:
+    initContainers:
+      - name: vmrestore
+        image: victoriametrics/vmrestore
+        volumeMounts:
+        - mountPath: /storage
+          name: server-volume
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            ./vmrestore-prod \
+              -storageDataPath=/storage \
+              -src=s3://vmmetrics-testbackup/vm-backups/latest \
+              -customS3Endpoint=https://objectstore.yourdomain.tld:2222 \
+        env:
+          - name: AWS_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: s3-credentials
+                key: key
+          - name: AWS_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: s3-credentials
+                key: secret
+
+    ingress:
+      enabled: false
+    
+    service:
+      clusterIP: ""
+      
+    persistentVolume:
+      enabled: true
+
+      storageClassName: ""
+
+opentelemetry-collector:
+  enabled: true
+
+  mode: deployment
+  image:
+    repository: "otel/opentelemetry-collector-contrib"
+  
+  # We do not use otel to deploy metric or log collectors
+  presets:
+    clusterMetrics:
+      enabled: false
+    logsCollection:
+      enabled: false
+  
+  # Default config to be used.
+  config:
+    processors:
+      deltatocumulative:
+        max_stale: 5m
+    metricstransform:
+      transforms:
+        - include: "*"
+          action: update
+          operations:
+            - action: add_label
+              new_label: 
+              new_value: <new_label_value>
+
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+    exporters:
+      otlp_http/victoriametrics:
+        compression: gzip
+        encoding: proto
+        metrics_endpoint: http://{{ .Release.Name }}-victoria-metrics-single-server.{{ .Release.Namespace }}.svc.cluster.local:8428/opentelemetry/v1/metrics
+        tls:
+          insecure: true
+          
+    service:
+      pipelines:
+        metrics:
+          receivers: [otlp]
+          processors: [deltatocumulative]
+          exporters: [otlp_http/victoriametrics]
+  ingress:
+    enabled: false

@@ -13,8 +13,8 @@
   when: (groups['k8s_clusters'] | default([])) | length > 0
   vars:
     clusters: "{{ groups['k8s_clusters'] | default([]) }}"
-    # Path to observability-edge Helm chart (see observability/kubernetes/charts).
-    helm_chart_path: "{{ playbook_dir }}/../../kubernetes/charts/observability-edge"
+    # Path to Helm chart (repo root charts/observability-edge). Override if your layout differs.
+    helm_chart_path: "{{ playbook_dir }}/../charts/observability-edge"
   tasks:
     - name: Deploy OTel to cluster {{ cluster_host }}
       include_tasks: tasks/deploy_otel_k8s_cluster.yml
@@ -26,8 +26,8 @@
         helm_chart_path: "{{ hostvars[cluster_host].helm_chart_path | default(helm_chart_path) }}"
         master_otlp_http: "{{ hostvars[cluster_host].master_otlp_http | default('https://otel.yourdomain.tld') }}"
         customer: "{{ hostvars[cluster_host].customer | default('YOUR_ORG') }}"
-        environment: "{{ hostvars[cluster_host].environment | default('YOUR_ENV') }}"
-        country: "{{ hostvars[cluster_host].country | default('YOUR_COUNTRY') }}"
+        environment: "{{ hostvars[cluster_host].environment | default('PRD') }}"
+        country: "{{ hostvars[cluster_host].country | default('AT') }}"
         service_name: "{{ hostvars[cluster_host].service_name | default('k8s-cluster') }}"
         cluster: "{{ hostvars[cluster_host].cluster | default(hostvars[cluster_host].service_name | default('k8s-cluster')) }}"
         team: "{{ hostvars[cluster_host].team | default('') }}"

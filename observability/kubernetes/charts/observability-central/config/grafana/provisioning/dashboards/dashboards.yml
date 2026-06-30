@@ -2,7 +2,7 @@
 # allowUiUpdates: true and disableDeletion: false allow editing and deleting from the UI.
 apiVersion: 1
 providers:
-  - name: default
+  - name: YOUR_ORG
     orgId: 1
     folder: ""
     type: file
@@ -10,4 +10,49 @@ providers:
     allowUiUpdates: true
     updateIntervalSeconds: 30
     options:
-      path: /etc/grafana/provisioning/dashboards/observability-json
+      path: /tmp/dashboards/tenant-json
+  - name: Assembly
+    orgId: 2
+    folder: ""
+    type: file
+    disableDeletion: false
+    allowUiUpdates: true
+    updateIntervalSeconds: 30
+    options:
+      path: /tmp/dashboards/assembly-json
+  - name: Access
+    orgId: 3
+    folder: ""
+    type: file
+    disableDeletion: false
+    allowUiUpdates: true
+    updateIntervalSeconds: 30
+    options:
+      path: /tmp/dashboards/access-json
+  - name: Application
+    orgId: 4
+    folder: ""
+    type: file
+    disableDeletion: false
+    allowUiUpdates: true
+    updateIntervalSeconds: 30
+    options:
+      path: /tmp/dashboards/application-json
+  - name: Cloud
+    orgId: 5
+    folder: ""
+    type: file
+    disableDeletion: false
+    allowUiUpdates: true
+    updateIntervalSeconds: 30
+    options:
+      path: /tmp/dashboards/cloud-json
+  - name: Conversion
+    orgId: 6
+    folder: ""
+    type: file
+    disableDeletion: false
+    allowUiUpdates: true
+    updateIntervalSeconds: 30
+    options:
+      path: /tmp/dashboards/conversion-json

@@ -1,0 +1,100 @@
+{{- if .Values.vmBackup.enabled }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: vmbackup-hourly
+  namespace: {{ .Values.namespace | default "observability" }}
+  labels:
+    app.kubernetes.io/name: vm-backup
+    app.kubernetes.io/component: backup
+spec:
+  schedule: "0 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      app.kubernetes.io/name: victoria-metrics-single
+                      app.kubernetes.io/instance: {{ .Release.Name }}
+                      app: server
+                  topologyKey: kubernetes.io/hostname
+          volumes:
+            - name: source-volume
+              persistentVolumeClaim:
+                claimName: {{ .Values.vmBackup.pvcName }}
+          containers:
+            - name: vmbackup
+              image: {{ .Values.vmBackup.image.repository }}:{{ .Values.vmBackup.image.tag }}
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  ./vmbackup-prod \
+                    -storageDataPath=/source \
+                    -snapshot.createURL=http://{{ .Values.vmBackup.vmServiceName }}.{{ .Values.namespace | default "observability" }}.svc.cluster.local:8428/snapshot/create \
+                    -customS3Endpoint={{ .Values.vmBackup.s3.endpoint }} \
+                    -dst=s3://{{ .Values.vmBackup.s3.bucket }}/vm-backups/{{ .Values.vmBackup.s3.hourlyPath | default "latest" }}
+              env:
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.vmBackup.s3.credentialsSecret }}
+                      key: key
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.vmBackup.s3.credentialsSecret }}
+                      key: secret
+              volumeMounts:
+                - mountPath: /source
+                  name: source-volume
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: vmbackup-daily
+  namespace: {{ .Values.namespace | default "observability" }}
+  labels:
+    app.kubernetes.io/name: vm-backup
+    app.kubernetes.io/component: backup
+spec:
+  schedule: "0 0 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: vmbackup
+              image: {{ .Values.vmBackup.image.repository }}:{{ .Values.vmBackup.image.tag }}
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  TIMESTAMP=$(date +%Y-%m-%d)
+                  ./vmbackup-prod \
+                    -origin=s3://{{ .Values.vmBackup.s3.bucket }}/vm-backups/{{ .Values.vmBackup.s3.hourlyPath | default "latest" }} \
+                    -customS3Endpoint={{ .Values.vmBackup.s3.endpoint }} \
+                    -dst=s3://{{ .Values.vmBackup.s3.bucket }}/vm-backups/$TIMESTAMP
+              env:
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.vmBackup.s3.credentialsSecret }}
+                      key: key
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.vmBackup.s3.credentialsSecret }}
+                      key: secret
+{{- end }}

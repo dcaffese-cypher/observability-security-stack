@@ -1,12 +1,9 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: grafana-dashboards-json
-  namespace: {{ .Release.Namespace }}
-  labels:
-    app.kubernetes.io/name: observability-central
-data:
-{{- range .Values.customGrafana.dashboardFiles }}
-  {{ . | replace " " "-" | replace "&" "and" | replace "–" "-" | quote }}: |
-{{ printf "%s" ($.Files.Get (printf "config/grafana/provisioning/dashboards/json/%s" .)) | replace "{{" "{{`{{`}}" | replace "}}" "{{`}}`}}" | nindent 4 }}
-{{- end }}
+{{- /*
+  Dashboard JSON files are NOT bundled into the Helm release to keep the release
+  secret under the 1MB Kubernetes limit (kube-prometheus-stack alone is ~800KB).
+  Apply dashboards separately:
+    kubectl create configmap grafana-dashboards-json -n observability \
+      --from-file=config/grafana/provisioning/dashboards/json/ \
+      --dry-run=client -o yaml | kubectl apply -f -
+  See manifests/README.md for details.
+*/ -}}
