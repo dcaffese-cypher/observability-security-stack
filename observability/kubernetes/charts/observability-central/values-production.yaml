@@ -13,8 +13,7 @@ otel-deploy:
   replicaCount: 2
 
 # Logs at scale: disable single and enable cluster; then override OTel
-# logs_endpoint and Grafana Victoria Logs datasource URL per comments in values.yaml
-# (victoria-logs-cluster section).
+# logs_endpoint and Grafana Victoria Logs datasource URL per comments in values.yaml.
 # victoria-logs-single:
 #   enabled: false
 # victoria-logs-cluster:

@@ -37,9 +37,11 @@ spec:
               command: ["/bin/sh", "-c"]
               args:
                 - |
+                  # Short in-cluster DNS (same namespace) — avoids FQDN/CoreDNS flaps when
+                  # the headless VM-single Service briefly has no endpoints during STS moves.
                   ./vmbackup-prod \
                     -storageDataPath=/source \
-                    -snapshot.createURL=http://{{ .Values.vmBackup.vmServiceName }}.{{ .Values.namespace | default "observability" }}.svc.cluster.local:8428/snapshot/create \
+                    -snapshot.createURL=http://{{ .Values.vmBackup.vmServiceName }}:8428/snapshot/create \
                     -customS3Endpoint={{ .Values.vmBackup.s3.endpoint }} \
                     -dst=s3://{{ .Values.vmBackup.s3.bucket }}/vm-backups/{{ .Values.vmBackup.s3.hourlyPath | default "latest" }}
               env:
@@ -66,7 +68,7 @@ metadata:
     app.kubernetes.io/name: vm-backup
     app.kubernetes.io/component: backup
 spec:
-  schedule: "0 0 * * *"
+  schedule: "10 0 * * *"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1

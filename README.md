@@ -4,7 +4,7 @@ Deployable templates for a **central observability hub** and **remote collectors
 
 | Platform | What you get |
 |----------|----------------|
-| **Kubernetes** | Helm chart `observability-central`: Prometheus, Grafana 12, **Victoria Metrics**, **Victoria Logs**, OTel gateway + node DaemonSet, dashboards & alerting as code |
+| **Kubernetes** | Helm chart `observability-central`: Prometheus, Grafana 12, **Victoria Metrics**, **Victoria Logs**, OTel gateway + node DaemonSet, Gateway API, vm/vl S3 backup hooks, mission dashboards & alerting as code |
 | **Linux VMs** | Docker Compose (`vm-docker/`) or **Ansible** agents pushing OTLP to the hub |
 | **Other K8s clusters** | Chart `observability-edge` (DaemonSet → central OTLP URL) |
 
@@ -94,9 +94,11 @@ Legacy assets are kept on purpose (older dashboard JSON, APISIX gitops samples, 
 | File | Use |
 |------|-----|
 | `values.yaml` | **Production template** (same shape as our live stack; placeholders for DNS, OAuth, S3) |
-| `values.local.lab.yaml` | Lab overlay: no Gateway API / GitHub OAuth / S3 backup; default StorageClass |
+| `values.local.lab.yaml` | Lab overlay: no Gateway API / GitHub OAuth / S3 backup / cluster backends; default StorageClass |
 | `values.local.production.example.yaml` | Copy → `values.local.yaml` and edit |
 | `values-production.yaml` | Optional HA (Prometheus + OTel replicas) |
+
+**Recent template highlights:** Access/HDA dashboards, blackbox OTLP probe module, Victoria Logs cluster backup CronJobs (`vlBackupCluster`), Grafana org bootstrap, tenant dashboards folder.
 
 Install production-style:
 

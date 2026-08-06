@@ -2,7 +2,7 @@
 
 Unified document: stack architecture, risks, implemented improvements, and current cluster status (namespace `observability`).
 
-Repository: `YOUR_ORG/assembly/observability` (structure: `kubernetes/charts/observability-central`, `kubernetes/gitops/`, `docs/`).
+Repository: `YOUR_ORG/assembly/observability` (structure: `charts/observability-central`, `move-to-k8s-inf/`, `docs/`).
 
 ---
 
@@ -30,7 +30,7 @@ Repository: `YOUR_ORG/assembly/observability` (structure: `kubernetes/charts/obs
 **Data flows:**
 - **Metrics (scrape):** Prometheus scrapes cluster targets + SNMP (Cumulus) → Prometheus only (pending migration to vmagent).
 - **Metrics (OTel):** Agents/Edge clusters → OTel Collector → Victoria Metrics. Grafana queries VM (and Prometheus).
-- **Metrics (archive):** k8s_cluster receiver → filter argocd namespace → kpi-archive-1 (Sean's MR#10 pattern).
+- **Metrics (archive):** k8s_cluster receiver → filter argocd namespace → kpi-archive-1 (platform-team MR#10 pattern).
 - **Logs:** Edge clusters (OTel daemonset) → OTel gateway → Victoria Logs. Grafana queries Victoria Logs.
 
 **OTel Collector:** deployed via official `opentelemetry-collector` Helm chart (v0.147.1, app v0.131.0).
@@ -67,7 +67,7 @@ Repository: `YOUR_ORG/assembly/observability` (structure: `kubernetes/charts/obs
 | Medium | Grafana PDB | PDB minAvailable 1. |
 | Medium | Alertmanager | Disabled until CIDR is resolved; documented. |
 | Medium | Edge health monitoring | Blackbox exporter probing grafana.yourdomain.tld and otel.yourdomain.tld (TLS + availability). |
-| Low | VM backup | CronJobs prepared (disabled); aligned with Sean's kpi-archive-1 pattern. |
+| Low | VM backup | CronJobs prepared (disabled); aligned with platform-team kpi-archive-1 pattern. |
 | Other | Routing / TLS ownership | Gateway listeners + certs in `k8s-infra`; chart owns only HTTPRoute resources (Option B). |
 | Other | Dashboard size | Grafana dashboard JSONs applied via kubectl (outside Helm release) to stay under 1MB secret limit. |
 
@@ -81,9 +81,10 @@ Repository: `YOUR_ORG/assembly/observability` (structure: `kubernetes/charts/obs
 |-----------|----------|--------|-------|
 | Grafana | 1 | Running | 3/3 containers |
 | Prometheus | 1 | Running | 2/2 containers |
-| Loki | 1 | Running | 2/2; caches disabled |
-| OTel Collector | 1 | Running | official chart; k8s_cluster + archive-1 |
-| Victoria Metrics | 1 | Running | 20Gi PVC |
+| OTel Collector (deploy) | 1 | Running | official chart; k8s_cluster + archive-1 |
+| OTel Collector (daemonset) | 1/node | Running | logs + host/kubelet metrics |
+| Victoria Metrics Single | 1 | Running | 20Gi PVC |
+| Victoria Logs Single | 1 | Running | 20Gi PVC (cluster mode in production) |
 | Blackbox Exporter | 1 | Running | probing grafana + otel endpoints |
 | Kube state metrics | 1 | Running | |
 | Node exporter | DaemonSet | Running | |
@@ -99,20 +100,22 @@ Repository: `YOUR_ORG/assembly/observability` (structure: `kubernetes/charts/obs
 
 | Release | Chart | Purpose |
 |---------|-------|---------|
-| `observability-central` | local chart | Grafana, Prometheus, Loki, VM, Blackbox, HTTPRoutes |
-| `otel-collector-chart` | opentelemetry-collector v0.147.1 | OTel Collector (official chart) |
+| `observability-central` | local chart | Grafana, Prometheus, Victoria Metrics, Victoria Logs, OTel, Blackbox, HTTPRoutes |
+| `observability-central` (otel-deploy) | opentelemetry-collector v0.147.1 | OTel gateway (deployment, alias otel-deploy) |
+| `observability-central` (otel-daemonset) | opentelemetry-collector v0.147.1 | OTel daemonset per-node (alias otel-daemonset) |
 
 ### 4.4 Status summary
 
 | Aspect | Status |
 |--------|--------|
 | Metrics (scrape) | OK |
-| Logs (Loki) | OK |
+| Logs (VictoriaLogs) | OK |
 | Visualization (Grafana) | OK |
 | OTel gateway | OK (official chart, k8s_cluster receiver active) |
 | Archive pipeline | OK (filter/archive-1 → kpi-archive-1) |
 | Edge health probes | OK (blackbox-exporter) |
 | TLS | OK |
 | Victoria Metrics | OK |
+| Victoria Logs | OK (single; cluster in production) |
 
 Pending: enable Alertmanager when the cluster service IP range is fixed.

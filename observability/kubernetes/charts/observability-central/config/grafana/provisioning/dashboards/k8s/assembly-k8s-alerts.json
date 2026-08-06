@@ -119,7 +119,7 @@
             "type": "prometheus",
             "uid": "victoria-metrics"
           },
-          "expr": "sum(rate(container_cpu_usage_seconds_total{container!=\"\",id!=\"\"}[5m])) by (node) / sum(kube_node_status_allocatable{resource=\"cpu\",unit=\"core\"}) by (node) * 100",
+          "expr": "sum(rate(container_cpu_usage_seconds_total{container!=\"\",id!=\"\",cluster=~\"$cluster\"}[5m])) by (node) / sum(kube_node_status_allocatable{resource=\"cpu\",unit=\"core\",cluster=~\"$cluster\"}) by (node) * 100",
           "legendFormat": "{{node}}",
           "instant": false
         }
@@ -179,7 +179,7 @@
             "type": "prometheus",
             "uid": "victoria-metrics"
           },
-          "expr": "sum(rate(container_cpu_usage_seconds_total{container!=\"\",id!=\"\"}[5m])) by (node) / sum(kube_node_status_allocatable{resource=\"cpu\",unit=\"core\"}) by (node) * 100",
+          "expr": "sum(rate(container_cpu_usage_seconds_total{container!=\"\",id!=\"\",cluster=~\"$cluster\"}[5m])) by (node) / sum(kube_node_status_allocatable{resource=\"cpu\",unit=\"core\",cluster=~\"$cluster\"}) by (node) * 100",
           "legendFormat": "{{node}}"
         }
       ]
@@ -255,7 +255,7 @@
             "type": "prometheus",
             "uid": "victoria-metrics"
           },
-          "expr": "sum(container_memory_working_set_bytes{container!=\"\",id!=\"\"}) by (node) / sum(kube_node_status_allocatable{resource=\"memory\",unit=\"byte\"}) by (node) * 100",
+          "expr": "sum(container_memory_working_set_bytes{container!=\"\",id!=\"\",cluster=~\"$cluster\"}) by (node) / sum(kube_node_status_allocatable{resource=\"memory\",unit=\"byte\",cluster=~\"$cluster\"}) by (node) * 100",
           "legendFormat": "{{node}}",
           "instant": false
         }
@@ -314,7 +314,7 @@
             "type": "prometheus",
             "uid": "victoria-metrics"
           },
-          "expr": "sum(container_memory_working_set_bytes{container!=\"\",id!=\"\"}) by (node) / sum(kube_node_status_allocatable{resource=\"memory\",unit=\"byte\"}) by (node) * 100",
+          "expr": "sum(container_memory_working_set_bytes{container!=\"\",id!=\"\",cluster=~\"$cluster\"}) by (node) / sum(kube_node_status_allocatable{resource=\"memory\",unit=\"byte\",cluster=~\"$cluster\"}) by (node) * 100",
           "legendFormat": "{{node}}"
         }
       ]
@@ -624,7 +624,7 @@
             "type": "prometheus",
             "uid": "victoria-metrics"
           },
-          "expr": "kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes * 100",
+          "expr": "kubelet_volume_stats_used_bytes{namespace!=\"monitoring\"} / kubelet_volume_stats_capacity_bytes{namespace!=\"monitoring\"} * 100",
           "legendFormat": "{{namespace}}/{{persistentvolumeclaim}}",
           "instant": false
         }
@@ -726,7 +726,7 @@
             "type": "prometheus",
             "uid": "victoria-metrics"
           },
-          "expr": "kubelet_volume_stats_used_bytes",
+          "expr": "kubelet_volume_stats_used_bytes{namespace!=\"monitoring\"}",
           "legendFormat": "{{namespace}}/{{persistentvolumeclaim}}",
           "instant": true,
           "format": "table"
@@ -737,7 +737,7 @@
             "type": "prometheus",
             "uid": "victoria-metrics"
           },
-          "expr": "kubelet_volume_stats_capacity_bytes",
+          "expr": "kubelet_volume_stats_capacity_bytes{namespace!=\"monitoring\"}",
           "legendFormat": "{{namespace}}/{{persistentvolumeclaim}}",
           "instant": true,
           "format": "table"
@@ -748,7 +748,7 @@
             "type": "prometheus",
             "uid": "victoria-metrics"
           },
-          "expr": "kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes * 100",
+          "expr": "kubelet_volume_stats_used_bytes{namespace!=\"monitoring\"} / kubelet_volume_stats_capacity_bytes{namespace!=\"monitoring\"} * 100",
           "legendFormat": "{{namespace}}/{{persistentvolumeclaim}}",
           "instant": true,
           "format": "table"
@@ -869,5 +869,32 @@
         }
       ]
     }
-  ]
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "datasource": {
+          "type": "prometheus",
+          "uid": "victoria-metrics"
+        },
+        "definition": "label_values(kube_node_status_allocatable, cluster)",
+        "hide": 0,
+        "includeAll": true,
+        "multi": false,
+        "name": "cluster",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(kube_node_status_allocatable, cluster)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "label": "Cluster",
+        "type": "query"
+      }
+    ]
+  }
 }

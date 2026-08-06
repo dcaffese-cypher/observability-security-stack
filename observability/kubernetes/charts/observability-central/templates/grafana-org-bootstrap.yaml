@@ -32,10 +32,10 @@ metadata:
   annotations:
     "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-weight": "10"
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded,hook-failed
 spec:
-  ttlSecondsAfterFinished: 300
-  backoffLimit: 5
+  ttlSecondsAfterFinished: 120
+  backoffLimit: 0
   template:
     metadata:
       labels:
@@ -49,11 +49,11 @@ spec:
             - sh
             - -c
             - |
-              set -eu
-
+              VICTORIA_METRICS_URI="{{ .Values.temporaryURI }}"
               GRAFANA_URL="http://grafana.{{ .Values.namespace | default "observability" }}.svc.cluster.local:80"
               ADMIN_USER="$(cat /var/secrets/admin-user)"
               ADMIN_PASS="$(cat /var/secrets/admin-password)"
+              ERRORS=0
 
               # Wait for Grafana to be healthy (max 3 minutes)
               echo "Waiting for Grafana health..."
@@ -61,8 +61,8 @@ spec:
               until curl -sf "${GRAFANA_URL}/api/health" > /dev/null 2>&1; do
                 i=$((i+1))
                 if [ "$i" -ge 36 ]; then
-                  echo "ERROR: Grafana did not become healthy in time"
-                  exit 1
+                  echo "WARNING: Grafana did not become healthy in time — skipping bootstrap"
+                  exit 0
                 fi
                 echo "  attempt $i/36 — retrying in 5s"
                 sleep 5
@@ -88,17 +88,55 @@ spec:
                   if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ]; then
                     echo "Created org '${ORG}' (HTTP ${HTTP_CODE}): ${BODY}"
                   else
-                    echo "ERROR creating org '${ORG}' (HTTP ${HTTP_CODE}): ${BODY}"
-                    exit 1
+                    echo "WARNING: Could not create org '${ORG}' (HTTP ${HTTP_CODE}): ${BODY}"
+                    ERRORS=$((ERRORS+1))
                   fi
                 fi
               done
 
-              echo "All mission orgs are present."
+              echo "Org bootstrap done (errors so far: ${ERRORS})."
+
+              # Delete empty/spurious dashboard folders that alerting used to create.
+              # Alert rules now live under "Observability Stack" (org 1) and "Kubernetes" (org 2).
+              # NEVER delete "Observability Stack" — it holds the main provisioned dashboards.
+              cleanup_folder_by_title() {
+                ORG_ID="$1"
+                TITLE="$2"
+                FOLDERS_JSON=$(curl -s -u "${ADMIN_USER}:${ADMIN_PASS}" \
+                  -H "X-Grafana-Org-Id: ${ORG_ID}" \
+                  "${GRAFANA_URL}/api/folders?limit=100")
+                echo "${FOLDERS_JSON}" | tr '{' '\n' | grep -E "\"title\"[[:space:]]*:[[:space:]]*\"${TITLE}\"" | while read -r LINE; do
+                  FOLDER_UID=$(echo "${LINE}" | sed -n 's/.*"uid"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+                  [ -n "${FOLDER_UID}" ] || continue
+                  # Skip if the folder still contains dashboards.
+                  SEARCH=$(curl -s -u "${ADMIN_USER}:${ADMIN_PASS}" \
+                    -H "X-Grafana-Org-Id: ${ORG_ID}" \
+                    "${GRAFANA_URL}/api/search?type=dash-db&folderUIDs=${FOLDER_UID}&limit=5")
+                  if echo "${SEARCH}" | grep -q '"type"[[:space:]]*:[[:space:]]*"dash-db"'; then
+                    echo "  Keeping folder ${TITLE} uid=${FOLDER_UID} (still has dashboards)"
+                    continue
+                  fi
+                  DEL_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+                    -u "${ADMIN_USER}:${ADMIN_PASS}" \
+                    -H "X-Grafana-Org-Id: ${ORG_ID}" \
+                    -X DELETE "${GRAFANA_URL}/api/folders/${FOLDER_UID}?forceDeleteRules=false")
+                  echo "  Deleted folder ${TITLE} uid=${FOLDER_UID} (HTTP ${DEL_HTTP})"
+                done
+              }
+
+              echo "Cleaning up empty alert/dashboard folders..."
+              cleanup_folder_by_title 1 "Edge"
+              cleanup_folder_by_title 1 "Network Alerts"
+              cleanup_folder_by_title 1 "Edge / Gateway Alerts"
+              cleanup_folder_by_title 1 "Observability"
+              cleanup_folder_by_title 2 "K8S Alerts"
+              cleanup_folder_by_title 2 "K8s Alerts"
+              echo "Empty folder cleanup done."
 
               # Ensure mission orgs also have the same core datasources as YOUR_ORG.
-              # Grafana provisioning files default to orgId=1, so we bootstrap mission
-              # org datasources via Admin API to avoid manual per-org setup.
+              # $8 (DS_JSON_DATA) is optional extra jsonData, e.g. '{"manageAlerts":false}'.
+              # When a datasource already exists, a PUT is issued so settings like manageAlerts
+              # are kept current on every sync — idempotent and safe to re-run.
               ensure_datasource() {
                 ORG_ID="$1"
                 ORG_NAME="$2"
@@ -107,46 +145,101 @@ spec:
                 DS_TYPE="$5"
                 DS_URL="$6"
                 DS_DEFAULT="$7"
+                DS_JSON_DATA="${8:-{}}"
 
-                DS_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+                BODY="{\"name\":\"${DS_NAME}\",\"uid\":\"${DS_UID}\",\"type\":\"${DS_TYPE}\",\"url\":\"${DS_URL}\",\"access\":\"proxy\",\"isDefault\":${DS_DEFAULT},\"jsonData\":${DS_JSON_DATA}}"
+
+                DS_RESPONSE=$(curl -s -w "\n%{http_code}" \
                   -u "${ADMIN_USER}:${ADMIN_PASS}" \
                   -H "X-Grafana-Org-Id: ${ORG_ID}" \
                   "${GRAFANA_URL}/api/datasources/uid/${DS_UID}")
+                DS_HTTP=$(echo "$DS_RESPONSE" | tail -1)
+                DS_BODY=$(echo "$DS_RESPONSE" | head -1)
 
-                if [ "${DS_STATUS}" = "200" ]; then
-                  echo "Datasource '${DS_NAME}' (${DS_UID}) already exists in org '${ORG_NAME}' (id=${ORG_ID}) — skipping."
+                if [ "${DS_HTTP}" = "200" ]; then
+                  # Datasource exists — update to keep type/url/jsonData current.
+                  DS_ID=$(echo "${DS_BODY}" | sed -n 's/.*"id"[[:space:]]*:[[:space:]]*\([0-9]\+\).*/\1/p')
+                  RESULT=$(curl -s -w "\n%{http_code}" \
+                    -u "${ADMIN_USER}:${ADMIN_PASS}" \
+                    -H "X-Grafana-Org-Id: ${ORG_ID}" \
+                    -H "Content-Type: application/json" \
+                    -X PUT "${GRAFANA_URL}/api/datasources/${DS_ID}" \
+                    -d "${BODY}")
+                  HTTP_CODE=$(echo "$RESULT" | tail -1)
+                  RESP_BODY=$(echo "$RESULT" | head -1)
+                  if [ "$HTTP_CODE" = "200" ]; then
+                    echo "Updated datasource '${DS_NAME}' (${DS_UID}) in org '${ORG_NAME}'."
+                  elif [ "$HTTP_CODE" = "403" ]; then
+                    # 403 "Cannot update read-only data source" means the datasource was once
+                    # file-provisioned and still has read_only=true in the DB even after provenance
+                    # was cleared. Delete and recreate to reset the flag.
+                    echo "WARNING: datasource '${DS_NAME}' in org '${ORG_NAME}' is read-only — deleting and recreating."
+                    DEL_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+                      -u "${ADMIN_USER}:${ADMIN_PASS}" \
+                      -H "X-Grafana-Org-Id: ${ORG_ID}" \
+                      -X DELETE "${GRAFANA_URL}/api/datasources/${DS_ID}")
+                    if [ "$DEL_CODE" = "200" ]; then
+                      RECREATE=$(curl -s -w "\n%{http_code}" \
+                        -u "${ADMIN_USER}:${ADMIN_PASS}" \
+                        -H "X-Grafana-Org-Id: ${ORG_ID}" \
+                        -H "Content-Type: application/json" \
+                        -X POST "${GRAFANA_URL}/api/datasources" \
+                        -d "${BODY}")
+                      RC=$(echo "$RECREATE" | tail -1)
+                      if [ "$RC" = "200" ] || [ "$RC" = "201" ]; then
+                        echo "Recreated read-only datasource '${DS_NAME}' in org '${ORG_NAME}'."
+                      else
+                        echo "WARNING: Could not recreate datasource '${DS_NAME}' (HTTP ${RC}): $(echo "$RECREATE" | head -1)"
+                        ERRORS=$((ERRORS+1))
+                      fi
+                    else
+                      echo "WARNING: Could not delete read-only datasource '${DS_NAME}' (HTTP ${DEL_CODE})"
+                      ERRORS=$((ERRORS+1))
+                    fi
+                  else
+                    echo "WARNING: Could not update datasource '${DS_NAME}' in org '${ORG_NAME}' (HTTP ${HTTP_CODE}): ${RESP_BODY}"
+                    ERRORS=$((ERRORS+1))
+                  fi
                   return 0
                 fi
 
+                # Datasource does not exist — create it.
                 RESULT=$(curl -s -w "\n%{http_code}" \
                   -u "${ADMIN_USER}:${ADMIN_PASS}" \
                   -H "X-Grafana-Org-Id: ${ORG_ID}" \
                   -H "Content-Type: application/json" \
                   -X POST "${GRAFANA_URL}/api/datasources" \
-                  -d "{\"name\":\"${DS_NAME}\",\"uid\":\"${DS_UID}\",\"type\":\"${DS_TYPE}\",\"url\":\"${DS_URL}\",\"access\":\"proxy\",\"isDefault\":${DS_DEFAULT}}")
+                  -d "${BODY}")
                 HTTP_CODE=$(echo "$RESULT" | tail -1)
-                BODY=$(echo "$RESULT" | head -1)
+                RESP_BODY=$(echo "$RESULT" | head -1)
                 if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ]; then
-                  echo "Created datasource '${DS_NAME}' (${DS_UID}) in org '${ORG_NAME}' (id=${ORG_ID})."
+                  echo "Created datasource '${DS_NAME}' (${DS_UID}) in org '${ORG_NAME}'."
                 else
-                  echo "ERROR creating datasource '${DS_NAME}' (${DS_UID}) in org '${ORG_NAME}' (id=${ORG_ID}) (HTTP ${HTTP_CODE}): ${BODY}"
-                  return 0
+                  echo "WARNING: Could not create datasource '${DS_NAME}' in org '${ORG_NAME}' (HTTP ${HTTP_CODE}): ${RESP_BODY}"
+                  ERRORS=$((ERRORS+1))
                 fi
               }
+
+              # YOUR_ORG org is always org id=1 — bootstrap its VM datasource here so temporaryURI
+              # applies to all orgs consistently (YOUR_ORG was previously file-provisioned via
+              # additionalDataSources which blocked API updates due to provenance=datasource).
+              ensure_datasource "1" "YOUR_ORG" "victoria-metrics" "Victoria Metrics" "victoriametrics-metrics-datasource" "${VICTORIA_METRICS_URI}" "true" '{"manageAlerts":false}'
 
               for ORG in Assembly Access Application Cloud Conversion; do
                 ORG_JSON=$(curl -s -u "${ADMIN_USER}:${ADMIN_PASS}" "${GRAFANA_URL}/api/orgs/name/${ORG}")
                 ORG_ID=$(echo "${ORG_JSON}" | sed -n 's/.*"id"[[:space:]]*:[[:space:]]*\([0-9]\+\).*/\1/p')
                 if [ -z "${ORG_ID}" ]; then
-                  echo "ERROR: Could not resolve org id for '${ORG}'. Response: ${ORG_JSON}"
-                  exit 1
+                  echo "WARNING: Could not resolve org id for '${ORG}' — skipping datasource bootstrap. Response: ${ORG_JSON}"
+                  ERRORS=$((ERRORS+1))
+                  continue
                 fi
 
-                ensure_datasource "${ORG_ID}" "${ORG}" "victoria-metrics" "Victoria Metrics" "prometheus" "http://observability-central-victoria-metrics-single-server:8428" "true"
-                ensure_datasource "${ORG_ID}" "${ORG}" "victoria-logs" "Victoria Logs" "victoriametrics-logs-datasource" "http://observability-central-victoria-logs-single-server:9428" "false"
+                ensure_datasource "${ORG_ID}" "${ORG}" "victoria-metrics" "Victoria Metrics" "victoriametrics-metrics-datasource" "${VICTORIA_METRICS_URI}" "true" '{"manageAlerts":false}'
+                ensure_datasource "${ORG_ID}" "${ORG}" "victoria-logs" "Victoria Logs" "victoriametrics-logs-datasource" "http://vl-select.observability.svc.cluster.local:9471" "false"
               done
 
-              echo "Mission org datasource bootstrap completed."
+              echo "Bootstrap completed. Total warnings: ${ERRORS}. Exiting 0 so sync is not blocked."
+              exit 0
           volumeMounts:
             - name: grafana-admin-secret
               mountPath: /var/secrets

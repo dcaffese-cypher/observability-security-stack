@@ -1,28 +1,114 @@
 apiVersion: 1
 
+# Teams / Power Automate Adaptive Card text (title + message).
+# Visual card chrome (pink header, View URL button, Workflow footer, and the long
+# Silence URL) is fixed by Grafana's Teams integration + the Power Automate
+# template — only title/message text are customizable here. To drop Silence from
+# the card body, edit the Power Automate Adaptive Card (not this file).
+#
+# Define names must stay unique across template groups within an org.
+# Prefer ranging maps directly (avoids SortedPairs warnings on some Grafana builds).
+#
+# Assembly Teams (org 1 + 2): keep the message short — triage fields only.
+# Dumping all labels made Teams auto-linkify OTel noise (e.g. scope.name → github.com/...).
 templates:
   - orgId: 1
-    name: custom_email_template
+    name: teams
     template: |
-      {{ define "custom_email.message" }}
-      {{ range .Alerts }}
+      {{ define "teams.title" -}}
+      [{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .CommonLabels.alertname }}
+      {{- end }}
+
+      {{ define "teams.message" -}}
+      {{ range .Alerts -}}
       {{ if eq .Status "firing" }}🔥 FIRING{{ else }}✅ RESOLVED{{ end }}: {{ .Labels.alertname }}
-      
+      {{ with .Annotations.summary }}{{ . }}
+      {{ end -}}
+      {{- with .Annotations.description }}{{ . }}
+      {{ end -}}
+      {{- with .Labels.cluster }}cluster: {{ . }}
+      {{ end -}}
+      {{- with .Labels.namespace }}namespace: {{ . }}
+      {{ end -}}
+      {{- with .Labels.pod }}pod: {{ . }}
+      {{ end -}}
+      {{- with .Labels.severity }}severity: {{ . }}
+      {{ end -}}
+      {{- with .Labels.team }}team: {{ . }}
+      {{ end }}
+      {{ end -}}
+      {{- end }}
+
+  # Assembly org (2) — same short Teams templates (define names are org-scoped).
+  - orgId: 2
+    name: teams
+    template: |
+      {{ define "teams.title" -}}
+      [{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .CommonLabels.alertname }}
+      {{- end }}
+
+      {{ define "teams.message" -}}
+      {{ range .Alerts -}}
+      {{ if eq .Status "firing" }}🔥 FIRING{{ else }}✅ RESOLVED{{ end }}: {{ .Labels.alertname }}
+      {{ with .Annotations.summary }}{{ . }}
+      {{ end -}}
+      {{- with .Annotations.description }}{{ . }}
+      {{ end -}}
+      {{- with .Labels.cluster }}cluster: {{ . }}
+      {{ end -}}
+      {{- with .Labels.namespace }}namespace: {{ . }}
+      {{ end -}}
+      {{- with .Labels.pod }}pod: {{ . }}
+      {{ end -}}
+      {{- with .Labels.severity }}severity: {{ . }}
+      {{ end -}}
+      {{- with .Labels.team }}team: {{ . }}
+      {{ end }}
+      {{ end -}}
+      {{- end }}
+
+  # Access org (3) — same Teams templates (define names are org-scoped).
+  - orgId: 3
+    name: teams
+    template: |
+      {{ define "teams.title" -}}
+      [{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .CommonLabels.alertname }}
+      {{- end }}
+
+      {{ define "teams.message" -}}
+      {{ range .Alerts -}}
+      {{ if eq .Status "firing" }}🔥 FIRING{{ else }}✅ RESOLVED{{ end }}: {{ .Labels.alertname }}
+
+      {{ if .Annotations.summary -}}
+      {{ .Annotations.summary }}
+      {{ end }}
+
       Labels:
-      {{ range .Labels.SortedPairs }}
-      {{ if ne .Name "job" }}
-      - {{ .Name }}: {{ .Value }}
-      {{ end }}
-      {{ end }}
-      
-      {{ if .Annotations }}
+      {{- range $k, $v := .Labels }}
+      {{- if and (ne $k "alertname") (ne $k "grafana_folder") (ne $k "dashboard") }}
+      - {{ $k }}: {{ $v }}
+      {{- end }}
+      {{- end }}
+
+      {{ if or .Annotations.description .Annotations.summary -}}
       Annotations:
-      {{ range .Annotations.SortedPairs }}
-      {{ if ne .Name "summary" }}
-      - {{ .Name }}: {{ .Value }}
-      {{ end }}
-      {{ end }}
-      {{ end }}
-      {{ end }}
-      {{ end }}
+      {{- if .Annotations.summary }}
+      - summary: {{ .Annotations.summary }}
+      {{- end }}
+      {{- if .Annotations.description }}
+      - description: {{ .Annotations.description }}
+      {{- end }}
+      {{- end }}
+
+      {{ if .Values -}}
+      Values:
+      {{- range $k, $v := .Values }}
+      {{- if ne $k "B" }}
+      - {{ $k }}: {{ reReplaceAll "([0-9]+\\.[0-9]{2})[0-9]*" "$1" $v }}
+      {{- end }}
+      {{- end }}
+      {{- end }}
+
+      {{ end -}}
+      {{- end }}
 

@@ -1,0 +1,169 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 164,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "victoriametrics-logs-datasource",
+        "uid": "victoria-logs"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 20,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "dedupStrategy": "none",
+        "enableInfiniteScrolling": false,
+        "enableLogDetails": true,
+        "prettifyLogMessage": true,
+        "showCommonLabels": false,
+        "showLabels": false,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": false
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "victoriametrics-logs-datasource",
+            "uid": "victoria-logs"
+          },
+          "direction": "desc",
+          "editorMode": "code",
+          "expr": "{cluster=\"$dc\", \"k8s.namespace.name\"=\"$ns\", \"k8s.pod.name\"=\"$pod\"} | sort by (_time) desc",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Pod Logs",
+      "type": "logs"
+    }
+  ],
+  "preload": false,
+  "schemaVersion": 41,
+  "tags": [],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "text": "prod-cluster",
+          "value": "prod-cluster"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "victoria-metrics"
+        },
+        "definition": "label_values({\"k8s.node.condition_ready\"},cluster)",
+        "name": "dc",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values({\"k8s.node.condition_ready\"},cluster)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "argo-workflows",
+          "value": "argo-workflows"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "victoria-metrics"
+        },
+        "definition": "label_values({\"k8s.namespace.phase\", cluster=\"$dc\"},k8s.namespace.name)",
+        "name": "ns",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values({\"k8s.namespace.phase\", cluster=\"$dc\"},k8s.namespace.name)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "argo-workflows-server-56cd64c666-5wnkl",
+          "value": "argo-workflows-server-56cd64c666-5wnkl"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "victoria-metrics"
+        },
+        "definition": "label_values({\"k8s.pod.phase\", \"k8s.namespace.name\"=\"$ns\", cluster=\"$dc\"},k8s.pod.name)",
+        "name": "pod",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values({\"k8s.pod.phase\", \"k8s.namespace.name\"=\"$ns\", cluster=\"$dc\"},k8s.pod.name)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "argo-workflows-server-54dd76d6dd-wbr7c",
+          "value": "argo-workflows-server-54dd76d6dd-wbr7c"
+        },
+        "definition": "query_result({\"k8s.pod.phase\",cluster=\"$dc\", k8s.namespace.name=\"$ns\"} == 2)",
+        "hide": 2,
+        "name": "pod2",
+        "options": [],
+        "query": {
+          "qryType": 3,
+          "query": "query_result({\"k8s.pod.phase\",cluster=\"$dc\", k8s.namespace.name=\"$ns\"} == 2)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": ".*k8s.pod.name=\"([^\"]+)\".*",
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Log Browser",
+  "uid": "7eaae2fa-991a-4c20-82c8-03a5e2f24d76",
+  "version": 6
+}

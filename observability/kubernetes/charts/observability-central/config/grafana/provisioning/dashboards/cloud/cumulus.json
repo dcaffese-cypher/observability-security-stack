@@ -27,7 +27,7 @@
       "title": "All interfaces (OperStatus) – selected switch",
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "victoria-metrics"
       },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
       "targets": [
@@ -78,7 +78,7 @@
       "title": "Admin UP but Oper DOWN (possible issues) – selected switch",
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "victoria-metrics"
       },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
       "targets": [
@@ -129,7 +129,7 @@
       "title": "All DOWN interfaces (all switches)",
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "victoria-metrics"
       },
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 },
       "targets": [
@@ -180,7 +180,7 @@
       "title": "Down ports per switch (OperStatus=2)",
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "victoria-metrics"
       },
       "gridPos": { "h": 6, "w": 8, "x": 0, "y": 16 },
       "targets": [
@@ -225,7 +225,7 @@
       "title": "Admin UP interfaces per switch",
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "victoria-metrics"
       },
       "gridPos": { "h": 6, "w": 8, "x": 8, "y": 16 },
       "targets": [
@@ -267,7 +267,7 @@
       "title": "Interface IN traffic (bps) – selected switch/interface",
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "victoria-metrics"
       },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 },
       "targets": [
@@ -296,7 +296,7 @@
       "title": "Interface OUT traffic (bps) – selected switch/interface",
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "victoria-metrics"
       },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 },
       "targets": [
@@ -325,7 +325,7 @@
       "title": "Total IN traffic per switch (bps)",
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "victoria-metrics"
       },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 30 },
       "targets": [
@@ -354,7 +354,7 @@
       "title": "Total OUT traffic per switch (bps)",
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "victoria-metrics"
       },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 30 },
       "targets": [
@@ -383,7 +383,7 @@
       "title": "Interface input errors (errors/s) – selected switch/interface",
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "victoria-metrics"
       },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 38 },
       "targets": [
@@ -412,7 +412,7 @@
       "title": "Top 10 interfaces by IN traffic (bps)",
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "victoria-metrics"
       },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 38 },
       "targets": [
@@ -466,7 +466,7 @@
         "type": "query",
         "datasource": {
           "type": "prometheus",
-          "uid": "${DS_PROMETHEUS}"
+          "uid": "victoria-metrics"
         },
         "definition": "label_values(ifHCInOctets, instance)",
         "refresh": 1,
@@ -481,7 +481,7 @@
         "type": "query",
         "datasource": {
           "type": "prometheus",
-          "uid": "${DS_PROMETHEUS}"
+          "uid": "victoria-metrics"
         },
         "definition": "label_values(ifHCInOctets{instance=\"$cumulus_switch\"}, ifName)",
         "refresh": 1,

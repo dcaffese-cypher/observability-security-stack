@@ -1,6 +1,6 @@
 # Acceso SSH a clusters y comandos básicos (referencia local)
 
-Documento de uso personal en el workspace **Mercadolibre Viena**. Resume cómo entrar por terminal a los nodos YOUR_ORG y los comandos que suelen usarse para revisar estado y reiniciar componentes de observabilidad.
+Documento de uso personal en el workspace **your-local-workspace**. Resume cómo entrar por terminal a los nodos YOUR_ORG y los comandos que suelen usarse para revisar estado y reiniciar componentes de observabilidad.
 
 **No incluir claves, contraseñas ni tokens en este archivo ni en git.** Las credenciales viven en `~/.ssh/` y en secretos de Kubernetes.
 

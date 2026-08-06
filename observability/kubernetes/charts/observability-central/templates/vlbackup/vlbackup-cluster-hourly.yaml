@@ -1,0 +1,129 @@
+{{- if .Values.vlBackupCluster.enabled }}
+
+{{- $replicas := int .Values.vlBackupCluster.replicas }}
+{{- $svcName := .Values.vlBackupCluster.vlStorageServiceName }}
+{{- $namespace := .Values.namespace | default "observability" }}
+{{- $s3endpoint := .Values.vlBackupCluster.s3.endpoint }}
+{{- $s3bucket := .Values.vlBackupCluster.s3.bucket }}
+{{- $credentialSecret := .Values.vlBackupCluster.s3.credentialsSecret }}
+{{- $retentionDays := int (.Values.vlBackupCluster.s3RetentionDays | default 3) }}
+
+{{- range $i := until $replicas }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: vlbackup-cluster-hourly-{{ $i }}
+  namespace: {{ $namespace }}
+  labels:
+    app.kubernetes.io/name: vl-backup-cluster
+    app.kubernetes.io/component: backup-cluster
+spec:
+  schedule: "30 */4 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      app.kubernetes.io/component: vlstorage
+                      app.kubernetes.io/instance: observability-central
+                      apps.kubernetes.io/pod-index: "{{ $i }}"
+                  topologyKey: kubernetes.io/hostname
+          volumes:
+            - name: storage-volume
+              persistentVolumeClaim:
+                claimName: vlstorage-volume-{{ $svcName }}-{{ $i }}
+          containers:
+            - name: vlbackup
+              image: rclone/rclone:latest
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -e
+                  STORAGE_URL="http://{{ $svcName }}-{{ $i }}.{{ $svcName }}.{{ $namespace }}.svc.cluster.local:9491"
+                  S3_DEST=":s3:{{ $s3bucket }}/vlogs-cluster-logs/{{ $svcName }}-{{ $i }}"
+
+                  echo "=== vlbackup hourly for {{ $svcName }}-{{ $i }} ==="
+
+                  echo "Creating snapshots..."
+                  SNAP_JSON=$(wget -qO- "${STORAGE_URL}/internal/partition/snapshot/create")
+                  echo "Snapshots: ${SNAP_JSON}"
+
+                  echo "${SNAP_JSON}" | tr -d '[]"' | tr ',' '\n' | grep -v '^[[:space:]]*$' | while read SNAP_PATH; do
+                    PARTITION=$(echo "${SNAP_PATH}" | awk -F'/' '{print $(NF-2)}')
+                    SNAP_ID=$(basename "${SNAP_PATH}")
+                    DEST="${S3_DEST}/${PARTITION}/${SNAP_ID}"
+                    echo "Syncing ${SNAP_PATH} → ${DEST}"
+                    rclone sync "${SNAP_PATH}" "${DEST}" \
+                      --s3-provider=Other \
+                      --s3-endpoint="{{ $s3endpoint }}" \
+                      --s3-access-key-id="${AWS_ACCESS_KEY_ID}" \
+                      --s3-secret-access-key="${AWS_SECRET_ACCESS_KEY}" \
+                      --s3-no-check-bucket \
+                      --transfers=4 \
+                      --stats=60s
+                  done
+
+                  echo "Purging S3 partitions older than {{ $retentionDays }} days..."
+                  CUTOFF=$(date -u -d @$(( $(date -u +%s) - {{ $retentionDays }} * 86400 )) +%Y%m%d)
+                  echo "Partition cutoff (YYYYMMDD, exclusive): partitions strictly before ${CUTOFF}"
+                  PURGE_ERRORS=0
+                  for PART in $(rclone lsf "${S3_DEST}" --dirs-only \
+                    --s3-provider=Other \
+                    --s3-endpoint="{{ $s3endpoint }}" \
+                    --s3-access-key-id="${AWS_ACCESS_KEY_ID}" \
+                    --s3-secret-access-key="${AWS_SECRET_ACCESS_KEY}" \
+                    --s3-no-check-bucket); do
+                    PART=$(echo "${PART}" | tr -d '/')
+                    case "${PART}" in
+                      [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9])
+                        if [ "${PART}" -lt "${CUTOFF}" ]; then
+                          echo "Purging ${S3_DEST}/${PART}"
+                          if ! rclone purge "${S3_DEST}/${PART}" \
+                            --s3-provider=Other \
+                            --s3-endpoint="{{ $s3endpoint }}" \
+                            --s3-access-key-id="${AWS_ACCESS_KEY_ID}" \
+                            --s3-secret-access-key="${AWS_SECRET_ACCESS_KEY}" \
+                            --s3-no-check-bucket; then
+                            PURGE_ERRORS=$((PURGE_ERRORS + 1))
+                          fi
+                        fi
+                        ;;
+                      *)
+                        echo "Skipping non-partition entry: ${PART}"
+                        ;;
+                    esac
+                  done
+                  if [ "${PURGE_ERRORS}" -gt 0 ]; then
+                    echo "S3 purge failed for ${PURGE_ERRORS} partition(s)"
+                    exit 1
+                  fi
+
+                  echo "Removing snapshots older than 25h..."
+                  wget -qO- "${STORAGE_URL}/internal/partition/snapshot/delete_stale?max_age=25h"
+                  echo "Done."
+              env:
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ $credentialSecret }}
+                      key: key
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ $credentialSecret }}
+                      key: secret
+              volumeMounts:
+                - mountPath: /storage
+                  name: storage-volume
+---
+{{- end }}
+{{- end }}

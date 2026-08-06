@@ -16,8 +16,14 @@ vmBackup:
 vmBackupCluster:
   enabled: false
 
-# Cluster-mode VM is for large production; lab uses victoria-metrics-single only.
+vlBackupCluster:
+  enabled: false
+
+# Cluster-mode backends are for large production; lab uses *-single only.
 victoria-metrics-cluster:
+  enabled: false
+
+victoria-logs-cluster:
   enabled: false
 
 kube-prometheus-stack:
@@ -48,6 +54,6 @@ victoria-logs-single:
     persistentVolume:
       storageClassName: ""
 
-# OTel gateway: single replica for small clusters (base chart may use HPA in other overlays).
+# OTel gateway: single replica for small clusters.
 otel-deploy:
   replicaCount: 1

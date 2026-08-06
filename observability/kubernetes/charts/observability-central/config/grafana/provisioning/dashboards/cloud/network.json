@@ -72,7 +72,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "victoria-metrics"
       },
       "fieldConfig": {
         "defaults": {
@@ -155,7 +155,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "editorMode": "code",
           "expr": "(\r\n  nvswitch_interface_info{operstate=\"up\", instance=~\"$instance\"} == 1\r\n) * 1\r\n",
@@ -173,7 +173,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "victoria-metrics"
       },
       "fieldConfig": {
         "defaults": {
@@ -276,7 +276,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "editorMode": "code",
           "exemplar": false,
@@ -294,7 +294,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "victoria-metrics"
       },
       "fieldConfig": {
         "defaults": {
@@ -418,7 +418,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "victoria-metrics"
       },
       "fieldConfig": {
         "defaults": {
@@ -500,7 +500,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "editorMode": "code",
           "exemplar": false,
@@ -514,7 +514,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "editorMode": "code",
           "exemplar": false,
@@ -533,7 +533,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "victoria-metrics"
       },
       "fieldConfig": {
         "defaults": {
@@ -640,7 +640,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "editorMode": "code",
           "expr": "increase(nvswitch_interface_dot3_stats_fcs_errors{instance=~\"$8100\"}[5m])  > 0\r\n",
@@ -652,7 +652,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "editorMode": "code",
           "expr": "increase(nvswitch_interface_phy_stats_phy_effective_errors[5m]) > 0",
@@ -665,7 +665,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "editorMode": "code",
           "expr": "increase(nvswitch_interface_ether_stats_crc_align_errors[5]) > 0",
@@ -682,7 +682,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "victoria-metrics"
       },
       "fieldConfig": {
         "defaults": {
@@ -764,7 +764,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "editorMode": "code",
           "expr": "rate(nvswitch_interface_ether_stats_jabbers{instance=~\"$instance\"}[5m]) > 0",
@@ -775,7 +775,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "editorMode": "code",
           "expr": "rate(nvswitch_interface_tx_int_cksm_err[5m]) > 0",
@@ -788,7 +788,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "editorMode": "code",
           "expr": "rate(nvswitch_interface_rx_buffer_full[5m]) > 0",
@@ -801,7 +801,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "editorMode": "code",
           "expr": "increase(nvswitch_interface_ether_stats_drop_events[1m]) > 0",
@@ -814,7 +814,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "editorMode": "code",
           "expr": "increase(nvswitch_interface_no_buffer_discard_mc[1m]) > 0",
@@ -827,7 +827,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "editorMode": "code",
           "expr": "increase(nvswitch_interface_tx_wait[1m]) > 0",
@@ -844,7 +844,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "victoria-metrics"
       },
       "fieldConfig": {
         "defaults": {
@@ -926,7 +926,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "editorMode": "code",
           "expr": "increase(nvswitch_interface_if_in_errors{instance=~\"$8100\"}[1m]) > 0\r\n",
@@ -941,7 +941,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "victoria-metrics"
       },
       "fieldConfig": {
         "defaults": {
@@ -1023,7 +1023,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "editorMode": "code",
           "expr": "nvswitch_interface_dot3_stats_symbol_errors{instance=~\"$instance\"} > 0",
@@ -1038,7 +1038,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "victoria-metrics"
       },
       "fieldConfig": {
         "defaults": {
@@ -1145,7 +1145,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "editorMode": "code",
           "expr": "rate(nvswitch_interface_if_out_errors{instance=~\"$8100\"}[5m]) > 0",
@@ -1160,7 +1160,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "victoria-metrics"
       },
       "fieldConfig": {
         "defaults": {
@@ -1216,7 +1216,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "editorMode": "code",
           "exemplar": false,
@@ -1235,7 +1235,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "victoria-metrics"
       },
       "fieldConfig": {
         "defaults": {
@@ -1342,7 +1342,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "editorMode": "code",
           "expr": "increase(nvswitch_interface_discards_loopback_filter{instance=~\"$8100\"}[5m]) > 0",
@@ -1357,7 +1357,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "victoria-metrics"
       },
       "fieldConfig": {
         "defaults": {
@@ -1464,7 +1464,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "editorMode": "code",
           "expr": "rate(nvswitch_interface_discards_egress_stp_filter{instance=~\"$8100\"}[5m]) > 0",
@@ -1481,7 +1481,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "victoria-metrics"
       },
       "fieldConfig": {
         "defaults": {
@@ -1563,7 +1563,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "editorMode": "code",
           "expr": " increase(nvswitch_interface_if_out_discards{instance=~\"$8100\"}[1m]) > 0",
@@ -1588,7 +1588,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "fieldConfig": {
             "defaults": {
@@ -1681,7 +1681,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "victoria-metrics"
               },
               "editorMode": "code",
               "exemplar": false,
@@ -1695,7 +1695,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "victoria-metrics"
               },
               "editorMode": "code",
               "exemplar": false,
@@ -1714,7 +1714,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "fieldConfig": {
             "defaults": {
@@ -1811,7 +1811,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "fieldConfig": {
             "defaults": {
@@ -1918,7 +1918,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "victoria-metrics"
               },
               "editorMode": "code",
               "expr": "sum by(instance) (increase(node_cpu_core_throttles_total[5m]))",
@@ -1934,7 +1934,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "fieldConfig": {
             "defaults": {
@@ -2041,7 +2041,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "victoria-metrics"
               },
               "editorMode": "code",
               "expr": "100 *\r\nsum by(instance) (rate(node_cpu_seconds_total{mode=\"iowait\"}[5m]))\r\n/\r\nsum by(instance) (rate(node_cpu_seconds_total[5m]))\r\n",
@@ -2057,7 +2057,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "fieldConfig": {
             "defaults": {
@@ -2165,7 +2165,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "victoria-metrics"
               },
               "editorMode": "code",
               "expr": "100 * (\r\n  1 -\r\n  sum by(instance) (\r\n    rate(node_cpu_seconds_total{mode=\"idle\"}[5m])\r\n  )\r\n  /\r\n  sum by(instance) (\r\n    rate(node_cpu_seconds_total[5m])\r\n  )\r\n)\r\n",
@@ -2181,7 +2181,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "fieldConfig": {
             "defaults": {
@@ -2289,7 +2289,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "victoria-metrics"
               },
               "editorMode": "code",
               "expr": "(\r\n  node_memory_MemTotal_bytes\r\n- node_memory_MemFree_bytes\r\n- node_memory_Buffers_bytes\r\n- node_memory_Cached_bytes\r\n) \r\n",
@@ -2305,7 +2305,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "fieldConfig": {
             "defaults": {
@@ -2413,7 +2413,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "victoria-metrics"
               },
               "editorMode": "code",
               "expr": "node_memory_MemAvailable_bytes\r\n",
@@ -2429,7 +2429,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "fieldConfig": {
             "defaults": {
@@ -2537,7 +2537,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "victoria-metrics"
               },
               "editorMode": "code",
               "expr": "node_memory_Buffers_bytes{instance=~\"$instance\"}",
@@ -2549,7 +2549,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "victoria-metrics"
               },
               "editorMode": "code",
               "expr": "node_memory_Cached_bytes{instance=~\"$instance\"}",
@@ -2566,7 +2566,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "fieldConfig": {
             "defaults": {
@@ -2674,7 +2674,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "victoria-metrics"
               },
               "editorMode": "code",
               "expr": "node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes\r\n",
@@ -2690,7 +2690,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "fieldConfig": {
             "defaults": {
@@ -2750,7 +2750,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "victoria-metrics"
               },
               "editorMode": "code",
               "expr": "100 * (1 - node_memory_SwapFree_bytes / node_memory_SwapTotal_bytes)\r\n",
@@ -2766,7 +2766,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "fieldConfig": {
             "defaults": {
@@ -2874,7 +2874,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "victoria-metrics"
               },
               "editorMode": "code",
               "exemplar": false,
@@ -2891,7 +2891,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "fieldConfig": {
             "defaults": {
@@ -3012,7 +3012,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "fieldConfig": {
             "defaults": {
@@ -3132,7 +3132,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "fieldConfig": {
             "defaults": {
@@ -3244,7 +3244,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "victoria-metrics"
               },
               "editorMode": "code",
               "exemplar": false,
@@ -3291,7 +3291,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "fieldConfig": {
             "defaults": {
@@ -3342,7 +3342,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "victoria-metrics"
               },
               "editorMode": "code",
               "exemplar": false,
@@ -3360,7 +3360,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "fieldConfig": {
             "defaults": {
@@ -3421,7 +3421,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "prometheus"
+                "uid": "victoria-metrics"
               },
               "editorMode": "code",
               "exemplar": false,
@@ -3491,7 +3491,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "victoria-metrics"
       },
       "fieldConfig": {
         "defaults": {
@@ -3561,7 +3561,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "editorMode": "code",
           "exemplar": false,
@@ -3579,7 +3579,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "victoria-metrics"
       },
       "fieldConfig": {
         "defaults": {
@@ -3685,7 +3685,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "editorMode": "code",
           "exemplar": false,
@@ -3699,7 +3699,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "editorMode": "code",
           "expr": "nvswitch_platform_info_last_reboot_reason",
@@ -3713,7 +3713,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "editorMode": "code",
           "expr": "nvswitch_platform_info_firmware_version",
@@ -3778,7 +3778,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "victoria-metrics"
       },
       "fieldConfig": {
         "defaults": {
@@ -3840,7 +3840,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "editorMode": "code",
           "exemplar": false,
@@ -3894,7 +3894,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "victoria-metrics"
       },
       "fieldConfig": {
         "defaults": {
@@ -3949,7 +3949,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "editorMode": "code",
           "expr": "nvswitch_interface_mtu_bytes{instance=~\"$instance\"}",
@@ -3983,7 +3983,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "victoria-metrics"
       },
       "fieldConfig": {
         "defaults": {
@@ -4044,7 +4044,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "victoria-metrics"
           },
           "editorMode": "code",
           "exemplar": false,
@@ -4101,7 +4101,7 @@
         },
         "datasource": {
           "type": "prometheus",
-          "uid": "prometheus"
+          "uid": "victoria-metrics"
         },
         "definition": "label_values(nvswitch_lldp_neighbor_info,instance)",
         "includeAll": true,
@@ -4131,7 +4131,7 @@
         },
         "datasource": {
           "type": "prometheus",
-          "uid": "prometheus"
+          "uid": "victoria-metrics"
         },
         "definition": "label_values(nvswitch_interface_discards_loopback_filter,instance)",
         "includeAll": true,
@@ -4152,7 +4152,7 @@
         "baseFilters": [],
         "datasource": {
           "type": "prometheus",
-          "uid": "prometheus"
+          "uid": "victoria-metrics"
         },
         "filters": [],
         "name": "Filters",

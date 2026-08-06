@@ -8,7 +8,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
-SKIP_DIRS = {".git", "charts"}  # do not rewrite vendored .tgz tree names under charts/*.tgz
 TEXT_SUFFIXES = {
     ".yaml", ".yml", ".json", ".md", ".ini", ".j2", ".sh", ".tpl", ".example",
     "",  # README without extension
@@ -26,15 +25,31 @@ HOST_REPLACEMENTS = [
     (re.compile(r"vault\.assembly\.eodc\.eu", re.I), "vault.assembly.yourdomain.tld"),
     (re.compile(r"argocd\.observability\.eodc\.eu", re.I), "argocd.yourdomain.tld"),
     (re.compile(r"objectstore\.eodc\.eu", re.I), "objectstore.yourdomain.tld"),
+    # Escaped PromQL / JSON regex host fragments
+    # Escaped PromQL fragments in Grafana JSON (often "\\\\.eodc\\\\.eu" in file bytes)
+    (re.compile(r"eodc\\\\\.eu", re.I), r"yourdomain\\\\.tld"),
+    (re.compile(r"\\\\\.eodc\\\\\.eu", re.I), r"\\\\.yourdomain\\\\.tld"),
+    (re.compile(r"\\\.eodc\\\.eu", re.I), r"\.yourdomain\.tld"),
     (re.compile(r"\.eodc\.eu\b", re.I), ".yourdomain.tld"),
 ]
 
 OTHER_REPLACEMENTS = [
+    # Personal / org identity
+    (re.compile(r"\s*\|\|\s*login\s*==\s*'dcaffese'", re.I), ""),
+    (re.compile(r"\s*\|\|\s*login\s*==\s*\"dcaffese\"", re.I), ""),
+    (re.compile(r"\bdcaffese\b", re.I), "YOUR_GITHUB_USER"),
     (re.compile(r"@eodcgmbh/", re.I), "@YOUR_GITHUB_ORG/"),
     (re.compile(r"\beodcgmbh\b", re.I), "YOUR_GITHUB_ORG"),
     (re.compile(r"customer=eodc\b", re.I), "customer=YOUR_ORG"),
     (re.compile(r"customer:\s*eodc\b", re.I), "customer: YOUR_ORG"),
-    (re.compile(r"\bEODC\b"), "YOUR_ORG"),  # org display name in Grafana mapping comments
+    (re.compile(r"assembly-teams-eodc"), "assembly-teams-example"),
+    (re.compile(r"access-teams-eodc"), "access-teams-example"),
+    (re.compile(r"\bEODC\b"), "YOUR_ORG"),
+    (re.compile(r"Bitwarden\s*→\s*Observability\s*/\s*Grafana OIDC Client"),
+     "your secret manager → Grafana OIDC Client"),
+    (re.compile(r"\bBitwarden\b"), "your secret manager"),
+    (re.compile(r"\bSean'?s\b"), "platform-team"),
+    (re.compile(r"\bSean\b"), "platform-admin"),
     # SNMP / internal targets (RFC 5737 documentation range)
     (re.compile(r"\b10\.250\.2\.180\b"), "192.0.2.10"),
     (re.compile(r"\b10\.250\.2\.181\b"), "192.0.2.11"),
@@ -45,6 +60,7 @@ OTHER_REPLACEMENTS = [
     (re.compile(r"\b10\.10\.33\.206\b"), "YOUR_K8S_NODE_IP"),
     (re.compile(r"\b10\.152\.183\.0/24\b"), "YOUR_CLUSTER_SERVICE_CIDR"),
     (re.compile(r"med-1repl-retain"), "YOUR_STORAGE_CLASS"),
+    (re.compile(r"csi-cinder-sc-retain"), "YOUR_STORAGE_CLASS"),
     (re.compile(r"vmmetrics-observability-backups"), "YOUR_VM_BACKUP_BUCKET"),
     (re.compile(r"victoria-cluster-backups"), "YOUR_VM_CLUSTER_BACKUP_BUCKET"),
     (re.compile(r"10\.250\.2\.18\[0-3\]"), "192.0.2.1[0-3]"),
@@ -58,14 +74,22 @@ OTHER_REPLACEMENTS = [
     (re.compile(r"customer=\"eodc\""), 'customer="YOUR_ORG"'),
     (re.compile(r"s3://eodc-observability-backups"), "s3://YOUR_OBSERVABILITY_BACKUP_BUCKET"),
     (re.compile(r"default\('eodc'\)"), "default('YOUR_ORG')"),
+    (re.compile(r"\| `eodc`"), "| `YOUR_ORG`"),
     (re.compile(r"glft-[A-Za-z0-9]+"), "glft-REDACTED"),
+    (re.compile(r"Mercadolibre Viena"), "your-local-workspace"),
+]
 
 
 def should_process(path: Path) -> bool:
     if path.suffix == ".tgz":
         return False
-    if any(part in SKIP_DIRS and part != "charts" for part in path.parts):
-        pass
+    # Skip vendored helm chart archives directory contents
+    parts = path.parts
+    if "charts" in parts:
+        idx = parts.index("charts")
+        # .../charts/observability-central/charts/*.tgz already skipped by suffix
+        if idx + 1 < len(parts) and parts[idx + 1].endswith(".tgz"):
+            return False
     if path.suffix in TEXT_SUFFIXES or path.name == "README":
         return True
     return False
@@ -87,8 +111,6 @@ def main() -> int:
     for path in target.rglob("*"):
         if not path.is_file() or not should_process(path):
             continue
-        if path.match("**/charts/*.tgz"):
-            continue
         try:
             original = path.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
@@ -97,6 +119,7 @@ def main() -> int:
         if updated != original:
             path.write_text(updated, encoding="utf-8")
             changed += 1
+            print(f"  sanitized: {path.relative_to(target)}")
     print(f"Sanitized {changed} files under {target}")
     return 0
 

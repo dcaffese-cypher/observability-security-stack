@@ -1,0 +1,21 @@
+{{- $kps := index .Values "kube-prometheus-stack" }}
+{{- $exclude := $kps.grafana.k8sDashboardExclude | default list }}
+
+{{- $files := .Files.Glob "config/grafana/provisioning/dashboards/k8s/*.json" }}
+{{- range $path, $file := $files }}
+{{- $basename := base $path }}
+{{- if not (has $basename $exclude) }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ printf "%s-%s" $.Release.Name (base $path | trimSuffix ".json") }}
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    k8s-sidecar-target-directory: "/tmp/dashboards/k8s-json"
+data:
+  {{ base $path }}: |
+{{ $.Files.Get $path | indent 4 }}
+{{- end }}
+{{- end }}

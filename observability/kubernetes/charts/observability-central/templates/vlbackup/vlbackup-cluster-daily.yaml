@@ -1,0 +1,98 @@
+{{- if false }}{{/* Daily backup disabled: VictoriaLogs already partitions by day; every-4h backup covers full retention. */}}
+
+{{- $replicas := int .Values.vlBackupCluster.replicas }}
+{{- $svcName := .Values.vlBackupCluster.vlStorageServiceName }}
+{{- $namespace := .Values.namespace | default "observability" }}
+{{- $s3endpoint := .Values.vlBackupCluster.s3.endpoint }}
+{{- $s3bucket := .Values.vlBackupCluster.s3.bucket }}
+{{- $credentialSecret := .Values.vlBackupCluster.s3.credentialsSecret }}
+
+{{- range $i := until $replicas }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: vlbackup-cluster-daily-{{ $i }}
+  namespace: {{ $namespace }}
+  labels:
+    app.kubernetes.io/name: vl-backup-cluster
+    app.kubernetes.io/component: backup-cluster
+spec:
+  schedule: "0 1 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      app.kubernetes.io/component: vlstorage
+                      app.kubernetes.io/instance: observability-central
+                      apps.kubernetes.io/pod-index: "{{ $i }}"
+                  topologyKey: kubernetes.io/hostname
+          volumes:
+            - name: storage-volume
+              persistentVolumeClaim:
+                claimName: vlstorage-volume-{{ $svcName }}-{{ $i }}
+          containers:
+            - name: vlbackup
+              image: rclone/rclone:latest
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -e
+                  YESTERDAY=$(date -u -d @$(( $(date -u +%s) - 86400 )) +%Y%m%d)
+                  STORAGE_URL="http://{{ $svcName }}-{{ $i }}.{{ $svcName }}.{{ $namespace }}.svc.cluster.local:9491"
+                  S3_DEST=":s3:{{ $s3bucket }}/vlogs-cluster-logs/{{ $svcName }}-{{ $i }}/daily/${YESTERDAY}"
+
+                  echo "=== vlbackup daily for {{ $svcName }}-{{ $i }} (partition ${YESTERDAY}) ==="
+
+                  echo "Creating snapshot for partition ${YESTERDAY}..."
+                  SNAP_JSON=$(wget -qO- "${STORAGE_URL}/internal/partition/snapshot/create?partition_prefix=${YESTERDAY}")
+                  echo "Snapshots: ${SNAP_JSON}"
+
+                  if [ -z "${SNAP_JSON}" ] || [ "${SNAP_JSON}" = "[]" ]; then
+                    echo "No snapshots returned for ${YESTERDAY} — partition may not exist yet. Exiting."
+                    exit 0
+                  fi
+
+                  echo "${SNAP_JSON}" | tr -d '[]"' | tr ',' '\n' | grep -v '^[[:space:]]*$' | while read SNAP_PATH; do
+                    SNAP_ID=$(basename "${SNAP_PATH}")
+                    DEST="${S3_DEST}/${SNAP_ID}"
+                    echo "Syncing ${SNAP_PATH} → ${DEST}"
+                    rclone sync "${SNAP_PATH}" "${DEST}" \
+                      --s3-provider=Other \
+                      --s3-endpoint="{{ $s3endpoint }}" \
+                      --s3-access-key-id="${AWS_ACCESS_KEY_ID}" \
+                      --s3-secret-access-key="${AWS_SECRET_ACCESS_KEY}" \
+                      --s3-no-check-bucket \
+                      --transfers=4 \
+                      --stats=60s
+                  done
+
+                  echo "Removing snapshots older than 25h..."
+                  wget -qO- "${STORAGE_URL}/internal/partition/snapshot/delete_stale?max_age=25h"
+                  echo "Done."
+              env:
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ $credentialSecret }}
+                      key: key
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ $credentialSecret }}
+                      key: secret
+              volumeMounts:
+                - mountPath: /storage
+                  name: storage-volume
+---
+{{- end }}
+{{- end }}

@@ -1,10 +1,10 @@
 # Phase 3 & 4 – ArgoCD Integration Plan
 
 **Date:** 2026-02-19  
-**Status:** Pending (requires Sean / GitLab admin access)  
+**Status:** Pending (requires platform-admin / GitLab admin access)  
 **Repo:** `https://git.yourdomain.tld/YOUR_ORG/assembly/observability`
 
-**Updates (Sean alignment):** Repo add via ArgoCD UI (Settings → Repositories); use group token `MANUAL_GITLAB_TOKEN` from https://git.yourdomain.tld/groups/YOUR_ORG/assembly/-/settings/ci_cd#ci-variables. Use a **single** ArgoCD Application for the observability-central chart (see `kubernetes/gitops/applications/observability-central-app.yaml`). Certificates live in `kubernetes/gitops/` and are **not** managed by ArgoCD (apply from k8s-infra).
+**Updates (platform-admin alignment):** Repo add via ArgoCD UI (Settings → Repositories); use group token `MANUAL_GITLAB_TOKEN` from https://git.yourdomain.tld/groups/YOUR_ORG/assembly/-/settings/ci_cd#ci-variables. Use a **single** ArgoCD Application for the observability-central chart (see `move-to-k8s-inf/applications/observability-central-app.yaml`). Certificates live in `move-to-k8s-inf/` and are **not** managed by ArgoCD (apply from k8s-infra).
 
 ---
 
@@ -12,7 +12,7 @@
 
 | Phase | What | Status |
 |-------|------|--------|
-| Phase 1 | Repo structure: `kubernetes/charts/observability-central`, `kubernetes/charts/observability-edge`, `kubernetes/gitops/` (single Application + TLS manifests), `ansible/otel-agent/`, `docs/` | Done |
+| Phase 1 | Repo structure: `charts/observability-central`, `charts/observability-edge`, `move-to-k8s-inf/` (single Application + TLS manifests), `playbooks/otel-agent/`, `docs/` | Done |
 | Phase 2 | Applied CRDs to cluster (Cert-Manager Certificates + ApisixTls for Grafana and OTel) | Done |
 
 ---
@@ -42,14 +42,14 @@ argocd repo add https://git.yourdomain.tld/YOUR_ORG/assembly/observability.git \
 argocd repo list
 ```
 
-### What we need from Sean / GitLab admin
+### What we need from platform-admin / GitLab admin
 
 | Item | Why needed | How to get it |
 |------|-----------|---------------|
 | **GitLab Deploy Token** (read_repository scope) | ArgoCD uses it to clone the repo | GitLab → `YOUR_ORG/assembly/observability` → Settings → Repository → Deploy Tokens → Create token with `read_repository` scope. GitLab shows the token **only once**. |
-| **ArgoCD admin password** | To run `argocd login` | Sean has it, or it can be read from the cluster: `microk8s kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath="{.data.password}" \| base64 -d` |
+| **ArgoCD admin password** | To run `argocd login` | platform-admin has it, or it can be read from the cluster: `microk8s kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath="{.data.password}" \| base64 -d` |
 
-> **Note:** A **Feed Token** (`glft-…` from GitLab user settings) is not a Deploy Token and does not work for repo clone in Argo CD. Create a Deploy Token with `read_repository` instead.
+> **Note:** A GitLab **Feed Token** (`glft-…`) is not a Deploy Token and cannot clone repos for Argo CD. Create a Deploy Token with `read_repository` instead.
 
 ---
 
@@ -58,16 +58,16 @@ argocd repo list
 ### What this does
 We use **one** ArgoCD Application that deploys the **observability-central** Helm chart (which includes Prometheus, Grafana, Loki, Victoria Metrics, OTel Collector via dependencies and templates). No separate Applications per component.
 
-The Application YAML is in the repo: **`kubernetes/gitops/applications/observability-central-app.yaml`**. Sean will move this (and the TLS manifests) to k8s-infra and apply at the point of install.
+The Application YAML is in the repo: **`move-to-k8s-inf/applications/observability-central-app.yaml`**. platform-admin will move this (and the TLS manifests) to k8s-infra and apply at the point of install.
 
 ### Apply it (from k8s-infra or a machine with cluster access)
 
 ```bash
 # Apply the single Application (after the observability repo is registered in ArgoCD)
-microk8s kubectl apply -f kubernetes/gitops/applications/observability-central-app.yaml -n argocd
+microk8s kubectl apply -f move-to-k8s-inf/applications/observability-central-app.yaml -n argocd
 ```
 
-Or create via ArgoCD UI: New App, point to repo `https://git.yourdomain.tld/YOUR_ORG/assembly/observability.git`, path `observability/kubernetes/charts/observability-central`, destination namespace `observability`, project `admin`.
+Or create via ArgoCD UI: New App, point to repo `https://git.yourdomain.tld/YOUR_ORG/assembly/observability.git`, path `charts/observability-central`, destination namespace `observability`, project `admin`.
 
 ### Verify
 
@@ -92,7 +92,7 @@ The stack is currently deployed via `helm upgrade` (manual). When ArgoCD takes o
 
 ---
 
-## Summary of what we need from Sean
+## Summary of what we need from platform-admin
 
 | # | What | Urgency |
 |---|------|---------|

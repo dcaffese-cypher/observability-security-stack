@@ -4,14 +4,21 @@
 
 namespace: observability
 
-# VictoriaMetrics Backup: aligned with Sean's kpi-archive-1 pattern (vmbackup-prod + customS3Endpoint).
+# Victoria Metrics datasource URL for grafana-org-bootstrap (all orgs). When victoria-metrics-cluster is enabled,
+# Grafana must query vmselect — blackbox/SNMP remote_write targets vminsert (see otel-deploy exporters).
+temporaryURI: http://observability-central-victoria-metrics-cluster-vmselect.observability.svc.cluster.local:8481/select/0/prometheus
+
+# VictoriaMetrics Backup: aligned with platform-team kpi-archive-1 pattern (vmbackup-prod + customS3Endpoint).
 # Requires: S3-compatible bucket + Secret with keys "key" and "secret" (same as project-kpi).
+# vmBackup → VM single (snapshot via short Service DNS in the observability namespace).
+# vmBackupCluster → VM cluster storage pods (enable via overlay when cluster is the primary store).
 # To enable: set enabled=true, create the Secret, and ensure the PVC name matches the VM StatefulSet.
 vmBackup:
   enabled: true
   image:
     repository: victoriametrics/vmbackup
     tag: latest
+  # Headless Service name for victoria-metrics-single (same namespace as the CronJob).
   vmServiceName: "observability-central-victoria-metrics-single-server"
   pvcName: "server-volume-observability-central-victoria-metrics-single-server-0"
   s3:
@@ -33,6 +40,21 @@ vmBackupCluster:
     hourlyPath: "latest"
     credentialsSecret: "s3-credentials"
 
+# VictoriaLogs Cluster Backup (rclone snapshot sync to S3 every 4h).
+# Backs up each vlstorage replica independently under vlogs-cluster-logs/.
+# S3 partition folders (YYYYMMDD) are purged after s3RetentionDays (aligned with victoria-logs-cluster retentionPeriod).
+# Same S3 bucket as VM cluster backups. Prerequisites: S3 secret "s3-credentials" with keys "key" and "secret".
+# Enable via ArgoCD overlay (observability-central.yaml) alongside victoria-logs-cluster.enabled=true.
+vlBackupCluster:
+  enabled: false
+  replicas: 2
+  s3RetentionDays: 3
+  vlStorageServiceName: "vl-storage"
+  s3:
+    bucket: "YOUR_VM_CLUSTER_BACKUP_BUCKET"
+    endpoint: "https://objectstore.yourdomain.tld:2222"
+    credentialsSecret: "s3-credentials"
+
 # Blackbox Exporter (subchart: prometheus-blackbox-exporter).
 # Probes public HTTPS endpoints for availability and TLS certificate validity.
 blackboxExporter:
@@ -48,6 +70,21 @@ prometheus-blackbox-exporter:
         http:
           valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
           valid_status_codes: [200, 401]
+          method: GET
+          fail_if_ssl: false
+          fail_if_not_ssl: true
+          tls_config:
+            insecure_skip_verify: false
+          preferred_ip_protocol: ip4
+      # OTLP/HTTP endpoints have no root path; GET /v1/logs returns 405 (no auth) or 401 (auth required).
+      # Both confirm the collector is alive and TLS is valid — correct health signal.
+      # Note: path is set in the scrape target URL, not here (blackbox has no path field in module).
+      https_otlp:
+        prober: http
+        timeout: 10s
+        http:
+          valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+          valid_status_codes: [405, 401]
           method: GET
           fail_if_ssl: false
           fail_if_not_ssl: true
@@ -86,6 +123,12 @@ kube-prometheus-stack:
   nameOverride: ""
   fullnameOverride: ""
   namespace: observability
+  prometheusOperator:
+    admissionWebhooks:
+      enabled: true
+      failurePolicy: Ignore
+      patch:
+        enabled: false
   prometheus:
     fullnameOverride: "prometheus"
     prometheusSpec:
@@ -113,62 +156,9 @@ kube-prometheus-stack:
           metrics_path: /metrics
           static_configs:
             - targets: ['grafana:3000']
-        # TODO Migrate dashboards to use VMetrics as a data source, then remove these job entries -> they are migrated to the prometheus reciever in otel
-        # Blackbox: HTTPS endpoint probes (availability + TLS cert validity)
-        - job_name: blackbox-https
-          metrics_path: /probe
-          params:
-            module: [https_2xx]
-          static_configs:
-            - targets:
-                - https://argocd.yourdomain.tld
-                - https://grafana.yourdomain.tld
-                - https://otel.yourdomain.tld
-                - https://vault.yourdomain.tld
-          relabel_configs:
-            - source_labels: [__address__]
-              target_label: __param_target
-            - source_labels: [__param_target]
-              target_label: instance
-            - target_label: __address__
-              replacement: blackbox-exporter:9115
-        - job_name: cumulus-snmp-interfaces
-          metrics_path: /snmp
-          params:
-            module: [if_mib]
-            auth: [cumulus_v3]
-          static_configs:
-            - targets: [192.0.2.10, 192.0.2.11, 192.0.2.12, 192.0.2.13]
-          relabel_configs:
-            - source_labels: [__address__]
-              target_label: __param_target
-            - source_labels: [__param_target]
-              target_label: instance
-            - target_label: __address__
-              replacement: snmp-exporter:9116
-            - source_labels: []
-              target_label: __metrics_path__
-              replacement: /snmp
-        - job_name: cumulus-snmp-lldp
-          metrics_path: /snmp
-          params:
-            module: [cumulus_lldp]
-            auth: [cumulus_v3]
-          static_configs:
-            - targets: [192.0.2.10, 192.0.2.11, 192.0.2.12, 192.0.2.13]
-          relabel_configs:
-            - source_labels: [__address__]
-              target_label: __param_target
-            - source_labels: [__param_target]
-              target_label: instance
-            - target_label: __address__
-              replacement: snmp-exporter:9116
-            - source_labels: []
-              target_label: __metrics_path__
-              replacement: /snmp
   # Use this chart to deploy kubelet and state metrics
   kubelet:
-    enabled: true
+    enabled: false
     serviceMonitor:
       probes: false
       resource: false
@@ -178,7 +168,7 @@ kube-prometheus-stack:
             regex: (kubelet_volume_stats_inodes_used|kubelet_volume_stats_inodes|machine_cpu_cores|container_cpu_usage_seconds_total|machine_memory_bytes|kubelet_volume_stats_used_bytes|kubelet_volume_stats_capacity_bytes|kubelet_volume_stats_available_bytes|container_memory_rss|container_memory_working_set_bytes|container_network_receive_bytes_total|container_network_transmit_bytes_total)
             sourceLabels: [__name__]
   kubeStateMetrics:
-    enabled: true
+    enabled: false
   prometheus-node-exporter:
     prometheus:
       monitor:
@@ -204,11 +194,14 @@ kube-prometheus-stack:
     admin:
       existingSecret: grafana-admin
     # GitHub OAuth: client_id/secret from Secret grafana-secret (keys GF_AUTH_GITHUB_* and GF_AUTH_GENERIC_OAUTH_*).
-    # Secret must be manually created in cluster from manifests/grafana-secret.example.yaml (Bitwarden: Observability/Grafana OIDC Client).
+    # Secret must be manually created in cluster from manifests/grafana-secret.example.yaml (your secret manager: Observability/Grafana OIDC Client).
     envFromSecret: grafana-secret
     # Existing PVC: disable init chown to avoid Permission denied on png/pdf/csv dirs.
     initChownData:
       enabled: false
+    # Recreate avoids Multi-Attach errors on RWO PVCs across nodes during rolling updates.
+    deploymentStrategy:
+      type: Recreate
     # Only our provisioned dashboards (customGrafana.dashboardFiles); stack default dashboards not loaded. Add others manually in UI.
     defaultDashboardsEnabled: false
     image:
@@ -231,12 +224,16 @@ kube-prometheus-stack:
     plugins:
       - victoriametrics-logs-datasource
     # Allow editing and deleting provisioned dashboards (stack and custom).
+    # Infra cluster: provision blackbox-infra.json only. Assembly overlay excludes blackbox-infra.json instead.
+    k8sDashboardExclude:
+      - blackbox-observability.json
     sidecar:
       datasources:
         enabled: true
         defaultDatasourceEnabled: false
         isDefaultDatasource: false
       dashboards:
+        searchNamespace: observability
         provider:
           allowUiUpdates: true
           disableDeletion: false
@@ -257,6 +254,10 @@ kube-prometheus-stack:
         protocol: http
         domain: grafana.yourdomain.tld
         root_url: "https://grafana.yourdomain.tld/"
+      # SQLite default (delete journal) serializes writers and stalls the UI under ngalert
+      # load (~14k alert instances after restart). WAL allows concurrent readers.
+      database:
+        wal: true
       # Avoid "SMTP not configured" errors when alerting uses the default email contact point.
       smtp:
         enabled: false
@@ -279,7 +280,7 @@ kube-prometheus-stack:
         auth_url: https://github.com/login/oauth/authorize
         token_url: https://github.com/login/oauth/access_token
         api_url: https://api.github.com/user
-        role_attribute_path: contains(groups[*], '@YOUR_GITHUB_ORG/assembly') && 'Admin' || 'Viewer'
+        role_attribute_path: (contains(groups[*], '@YOUR_GITHUB_ORG/assembly')) && 'Admin' || 'Viewer'
         allow_sign_up: true
         auto_login: false
         # Ensure org roles and org_mapping are re-evaluated on every login for existing users.
@@ -310,13 +311,9 @@ kube-prometheus-stack:
           *:Cloud:Viewer
           *:Conversion:Viewer
     additionalDataSources:
-      # Victoria Metrics: new stack (OTel → VM → Grafana). PromQL compatible.
-      - name: Victoria Metrics
-        uid: victoria-metrics
-        type: prometheus
-        url: http://observability-central-victoria-metrics-single-server:8428
-        access: proxy
-        isDefault: false
+      # Victoria Logs for YOUR_ORG org (org 1). URL may be overridden per environment via ArgoCD overlay.
+      # Victoria Metrics for YOUR_ORG is managed by the grafana-org-bootstrap Job (same as mission orgs)
+      # so that temporaryURI applies consistently across all installs.
       - name: Victoria Logs
         uid: victoria-logs
         type: victoriametrics-logs-datasource
@@ -349,7 +346,7 @@ kube-prometheus-stack:
     create: true
 
   nodeExporter:
-    enabled: true
+    enabled: false
 
 
 # Victoria Metrics Single
@@ -380,6 +377,7 @@ victoria-metrics-single:
     #     - -customS3Endpoint=https://objectstore.yourdomain.tld:2222
     #     - -src=s3://YOUR_VM_BACKUP_BUCKET/YOUR_VM_BACKUP_BUCKET/{{ now | date "2006-01-02" }}
 
+    retentionPeriod: 3M
     podLabels:
       app: server
     # fullnameOverride: "observability-central-victoria-metrics-single"
@@ -423,15 +421,20 @@ victoria-metrics-cluster:
     #     - -customS3Endpoint=https://objectstore.yourdomain.tld:2222
     #     - -src=s3://YOUR_VM_BACKUP_BUCKET/vm-cluster-metrics/$HOSTNAME/{{ now | date "2006-01-02" }}
 
+    retentionPeriod: 3M
     fullnameOverride: "vm-cluster-storage"
     persistentVolume:
       enabled: true
-      size: 20Gi
+      # Default aligned with assembly overlay (ASM26-287: 20Gi → 120Gi).
+      size: 120Gi
       storageClassName: "YOUR_STORAGE_CLASS"
 
 # Victoria Logs Single
 victoria-logs-single:
   enabled: true
+
+  retentionPeriod: 3d
+  
   # fullnameOverride: "observability-central-victoria-logs-single"
   server:
     persistentVolume:
@@ -453,11 +456,13 @@ victoria-logs-cluster:
     replicaCount: 2
 
   vlstorage:
+    retentionPeriod: 7d
     replicaCount: 2
     persistentVolume:
       enabled: true
-      size: 20Gi
-      storageClassName: "YOUR_STORAGE_CLASS"   # override in assembly overlay: csi-cinder-sc-retain
+      # Default aligned with assembly overlay (ASM26-288: 50Gi → 100Gi).
+      size: 100Gi
+      storageClassName: "YOUR_STORAGE_CLASS"   # override in assembly overlay: YOUR_STORAGE_CLASS
 
 # Official OTel Collector subchart config (used when otelCollector.useChart=true).
 # Mirrors the custom deployment config: same pipelines, same exporters, same RBAC.
@@ -532,6 +537,12 @@ otel-deploy:
             endpoint: 0.0.0.0:4318
             cors:
               allowed_origins: ["http://*"]
+
+      k8s_cluster:
+        node_conditions_to_report: [Ready, MemoryPressure, DiskPressure, PIDPressure, NetworkUnavailable]
+        allocatable_types_to_report: [cpu, memory]
+
+      
       # k8s_cluster is injected automatically by the clusterMetrics preset above.
       prometheus:
         config:
@@ -543,14 +554,15 @@ otel-deploy:
               params:
                 'match[]':
                   - '{job="prometheus"}'
-                  - '{job="otel-collector"}'
                   - '{job="kubelet"}'
                   - '{job="grafana"}'
-                  - '{job="node-exporter"}'
-                  - '{job="kube-state-metrics"}'
               static_configs:
                 - targets:
                     - observability-central-kube-prometheus.observability.svc.cluster.local:9090
+            # Blackbox HTTPS targets are cluster-specific. These defaults are for k8s-infra
+            # (grafana/argocd/otel/vault *.infra.yourdomain.tld). The assembly observability cluster
+            # MUST override scrape_configs in k8s-observability Argo (observability-central.yaml)
+            # with assembly + grafana.observability / otel.observability targets — do not mix envs here.
             - job_name: blackbox-https
               metrics_path: /probe
               params:
@@ -559,7 +571,6 @@ otel-deploy:
                 - targets:
                     - https://argocd.yourdomain.tld
                     - https://grafana.yourdomain.tld
-                    - https://otel.yourdomain.tld
                     - https://vault.yourdomain.tld
               relabel_configs:
                 - source_labels: [__address__]
@@ -568,41 +579,59 @@ otel-deploy:
                   target_label: instance
                 - target_label: __address__
                   replacement: blackbox-exporter:9115
+            # OTLP endpoints: GET /v1/logs returns 405 (alive signal) — separate module.
+            # Path /v1/logs is in the target URL (blackbox has no path field in module config).
+            - job_name: blackbox-otlp
+              metrics_path: /probe
+              params:
+                module: [https_otlp]
+              static_configs:
+                - targets:
+                    - https://otel.yourdomain.tld/v1/logs
+              relabel_configs:
+                - source_labels: [__address__]
+                  target_label: __param_target
+                - source_labels: [__param_target]
+                  regex: '(https?://[^/]+).*'
+                  replacement: '$1'
+                  target_label: instance
+                - target_label: __address__
+                  replacement: blackbox-exporter:9115
             # No longer working? Should be coming from cloud as opposed to our direct scrapes
-            # - job_name: cumulus-snmp-interfaces
-            #   metrics_path: /snmp
-            #   params:
-            #     module: [if_mib]
-            #     auth: [cumulus_v3]
-            #   static_configs:
-            #     - targets: [192.0.2.10, 192.0.2.11, 192.0.2.12, 192.0.2.13]
-            #   relabel_configs:
-            #     - source_labels: [__address__]
-            #       target_label: __param_target
-            #     - source_labels: [__param_target]
-            #       target_label: instance
-            #     - target_label: __address__
-            #       replacement: snmp-exporter:9116
-            #     - source_labels: []
-            #       target_label: __metrics_path__
-            #       replacement: /snmp
-            # - job_name: cumulus-snmp-lldp
-            #   metrics_path: /snmp
-            #   params:
-            #     module: [cumulus_lldp]
-            #     auth: [cumulus_v3]
-            #   static_configs:
-            #     - targets: [192.0.2.10, 192.0.2.11, 192.0.2.12, 192.0.2.13]
-            #   relabel_configs:
-            #     - source_labels: [__address__]
-            #       target_label: __param_target
-            #     - source_labels: [__param_target]
-            #       target_label: instance
-            #     - target_label: __address__
-            #       replacement: snmp-exporter:9116
-            #     - source_labels: []
-            #       target_label: __metrics_path__
-            #       replacement: /snmp
+            - job_name: cumulus-snmp-interfaces
+              metrics_path: /snmp
+              params:
+                module: [if_mib]
+                auth: [cumulus_v3]
+              static_configs:
+                - targets: [192.0.2.10, 192.0.2.11, 192.0.2.12, 192.0.2.13]
+              relabel_configs:
+                - source_labels: [__address__]
+                  target_label: __param_target
+                - source_labels: [__param_target]
+                  target_label: instance
+                - target_label: __address__
+                  replacement: snmp-exporter:9116
+                - source_labels: []
+                  target_label: __metrics_path__
+                  replacement: /snmp
+            - job_name: cumulus-snmp-lldp
+              metrics_path: /snmp
+              params:
+                module: [cumulus_lldp]
+                auth: [cumulus_v3]
+              static_configs:
+                - targets: [192.0.2.10, 192.0.2.11, 192.0.2.12, 192.0.2.13]
+              relabel_configs:
+                - source_labels: [__address__]
+                  target_label: __param_target
+                - source_labels: [__param_target]
+                  target_label: instance
+                - target_label: __address__
+                  replacement: snmp-exporter:9116
+                - source_labels: []
+                  target_label: __metrics_path__
+                  replacement: /snmp
 
     processors:
       resource/central-cluster-identity:
@@ -624,20 +653,6 @@ otel-deploy:
       batch/logs:
         send_batch_size: 100
         timeout: 2s
-      attributes/map-labels:
-        actions:
-          - action: upsert
-            key: CLIENT
-            from_attribute: customer
-          - action: upsert
-            key: ENVIRONMENT
-            from_attribute: environment
-          - action: upsert
-            key: COUNTRY
-            from_attribute: country
-          - action: upsert
-            key: SERVICE_NAME
-            from_attribute: service.name
       attributes/copy-k8s-labels:
         actions:
           - action: insert
@@ -658,9 +673,7 @@ otel-deploy:
 
     exporters:
       prometheusremotewrite/victoria-metrics:
-        endpoint: http://observability-central-victoria-metrics-single-server:8428/api/v1/write
-        resource_to_telemetry_conversion:
-          enabled: true
+        endpoint: http://observability-central-victoria-metrics-cluster-vminsert.observability.svc.cluster.local:8480/insert/0/prometheus/api/v1/write
         tls:
           insecure: true
       otlphttp/victorialogs:
@@ -670,7 +683,7 @@ otel-deploy:
         tls:
           insecure: true
       otlphttp/victoriametrics:
-        metrics_endpoint: http://observability-central-victoria-metrics-single-server:8428/opentelemetry/v1/metrics
+        metrics_endpoint: http://observability-central-victoria-metrics-cluster-vminsert.observability.svc.cluster.local:8480/insert/0/opentelemetry/v1/metrics
         tls:
           insecure: true
 

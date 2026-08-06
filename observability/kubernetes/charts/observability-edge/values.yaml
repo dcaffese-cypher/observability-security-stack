@@ -35,13 +35,18 @@ kube-prometheus-stack:
           - action: keep
             regex: (node_cpu_core_throttles_total|node_filesystem_files|node_time_seconds|node_boot_time_seconds|node_filefd_maximum|node_filefd_allocated|node_memory_Buffers_bytes|node_memory_Cached_bytes|node_memory_MemFree_bytes|node_memory_SwapTotal_bytes|node_memory_SwapFree_bytes|node_load1|node_load5|node_load15|node_context_switches_total|node_intr_total|node_timex_estimated_error_seconds|node_timex_maxerror_seconds|node_network_receive_errs_total|node_network_transmit_errs_total|node_network_receive_drop_total|node_network_transmit_drop_total|node_netstat_Tcp_CurrEstab|node_nf_conntrack_entries|node_nf_conntrack_entries_limit|node_filesystem_avail_bytes|node_filesystem_size_bytes|node_filesystem_files_free|node_disk_read_bytes_total|node_disk_written_bytes_total|node_disk_reads_completed_total|node_disk_writes_completed_total|node_disk_io_now|node_filesystem_device_error|node_cpu_seconds_total|node_memory_MemTotal_bytes|node_memory_MemAvailable_bytes|node_network_receive_bytes_total|node_network_transmit_bytes_total|node_network_receive_packets_total|node_network_transmit_packets_total)
             sourceLabels: [__name__]
+          - action: replace
+            sourceLabels: [instance]
+            regex: "([^:]+):.*"
+            targetLabel: server_address
+            replacement: "$1"
   kube-state-metrics:
     prometheus:
       monitor:
         interval: "15s"
         metricRelabelings:
           - action: keep
-            regex: (kube_pod_info|kube_node_status_condition|kube_ingress_path|kube_node_spec_unschedulable|kube_pod_container_resource_requests|kube_pod_container_resource_limits|kube_node_info|kube_namespace_created|kube_pod_labels|kube_pod_status_phase|kube_pod_container_status_running|kube_service_info|kube_namespace_labels|kube_endpoint_info|kube_deployment_labels|kube_statefulset_labels|kube_daemonset_labels|kube_persistentvolumeclaim_info|kube_hpa_labels|kube_configmap_info|kube_secret_info|kube_networkpolicy_labels)
+            regex: (kube_pod_info|kube_node_status_condition|kube_node_status_allocatable|kube_node_status_capacity|kube_ingress_path|kube_node_spec_unschedulable|kube_node_spec_taint|kube_pod_container_resource_requests|kube_pod_container_resource_limits|kube_pod_container_status_restarts_total|kube_pod_container_info|kube_node_info|kube_namespace_created|kube_pod_labels|kube_pod_status_phase|kube_pod_container_status_running|kube_service_info|kube_namespace_labels|kube_endpoint_info|kube_deployment_labels|kube_statefulset_labels|kube_daemonset_labels|kube_persistentvolumeclaim_info|kube_hpa_labels|kube_configmap_info|kube_secret_info|kube_networkpolicy_labels)
             sourceLabels: [__name__]
     metricLabelsAllowlist:
       - pods=[*]
@@ -94,6 +99,18 @@ otel-deploy:
           #   key: cluster_name
           #   value: edge-cluster-dev
 
+      # OTel's prometheusreceiver converts the Prometheus `instance` label
+      # to server.address + server.port resource attributes (OTLP semantic
+      # conventions). This processor restores a Prometheus-compatible
+      # `instance` data-point attribute so dashboards that filter by
+      # instance=<IP>:<port> (e.g. Kubernetes Cluster Nodes) continue to work.
+      transform/restore_prometheus_labels:
+        metric_statements:
+          - context: datapoint
+            statements:
+              - set(attributes["instance"], Concat([resource.attributes["server.address"], ":", resource.attributes["server.port"]], "")) where resource.attributes["server.address"] != nil
+              - set(attributes["server_address"], resource.attributes["server.address"]) where resource.attributes["server.address"] != nil
+
     receivers:
       otlp:
         protocols:
@@ -101,6 +118,10 @@ otel-deploy:
             endpoint: 0.0.0.0:4317
           http:
             endpoint: 0.0.0.0:4318
+
+      k8s_cluster:
+        node_conditions_to_report: [Ready, MemoryPressure, DiskPressure, PIDPressure, NetworkUnavailable]
+        allocatable_types_to_report: [cpu, memory]
 
       prometheus:
         config:
@@ -123,13 +144,21 @@ otel-deploy:
         compression: gzip
         headers:
          Authorization: "Bearer ${env:OTEL_AUTH_TOKEN}"
+      # Second exporter: central observability gateway.
+      # Both exporters run in parallel so grafana.infra dashboards keep working
+      # while grafana.observability also receives data (platform-team dual-export requirement).
+      otlp_http/observability-otel:
+        endpoint: https://otel.yourdomain.tld:443
+        compression: gzip
+        headers:
+         Authorization: "Bearer ${env:OTEL_AUTH_TOKEN}"
 
     service:
       pipelines:
         metrics:
           receivers: [k8s_cluster, prometheus]
-          processors: [batch, deltatocumulative, resource/tags]
-          exporters: [otlp_http/central-otel]
+          processors: [batch, deltatocumulative, resource/tags, transform/restore_prometheus_labels]
+          exporters: [otlp_http/central-otel, otlp_http/observability-otel]
   
   ingress:
     enabled: false
@@ -154,7 +183,7 @@ otel-daemonset:
     kubeletMetrics:
       enabled: true
     kubernetesAttributes:
-      enabled: false
+      enabled: true
     hostMetrics:
       enabled: true
 
@@ -233,9 +262,18 @@ otel-daemonset:
         send_batch_size: 2000
         send_batch_max_size: 4000
         timeout: 5s
+      
+      resourcedetection/system:
+        detectors: [system]
+        override: false
 
     exporters:
       otlp_http/central-otel:
+        endpoint: https://otel.yourdomain.tld:443
+        compression: gzip
+        headers:
+         Authorization: "Bearer ${env:OTEL_AUTH_TOKEN}"
+      otlp_http/observability-otel:
         endpoint: https://otel.yourdomain.tld:443
         compression: gzip
         headers:
@@ -246,8 +284,8 @@ otel-daemonset:
         logs:
           receivers: [otlp, filelog]
           processors: [attributes/copy-k8s-labels, batch/logs, resource/cluster-identity]
-          exporters: [otlp_http/central-otel]
+          exporters: [otlp_http/central-otel, otlp_http/observability-otel]
         metrics:
           receivers: [kubeletstats, hostmetrics]
-          processors: [batch, resource/cluster-identity]
-          exporters: [otlp_http/central-otel]
+          processors: [batch, k8sattributes, resourcedetection/system, resource/cluster-identity]
+          exporters: [otlp_http/central-otel, otlp_http/observability-otel]

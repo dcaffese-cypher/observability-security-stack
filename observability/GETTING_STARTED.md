@@ -9,7 +9,7 @@ This repository ships the **same central observability stack** we run in product
 ## 0. Clone and check your tools
 
 ```bash
-git clone https://github.com/dcaffese-cypher/observability-security-stack.git
+git clone https://github.com/YOUR_GITHUB_USER-cypher/observability-security-stack.git
 cd observability-security-stack
 chmod +x observability/scripts/*.sh
 ./observability/scripts/check-prerequisites.sh

@@ -4,7 +4,8 @@
 #   helm upgrade --install observability-central . -n observability \
 #     -f values.yaml -f values.local.yaml
 # Prerequisites: Gateway API (Envoy Gateway or compatible), TLS on Gateway listeners,
-# Secret grafana-admin, Secret grafana-secret (GitHub OAuth), StorageClass, optional S3 for vmBackup.
+# Secret grafana-admin, Secret grafana-secret (GitHub OAuth), StorageClass,
+# optional S3 for vmBackup / vlBackupCluster (Secret s3-credentials: key, secret).
 # ---------------------------------------------------------------------------
 
 gatewayAPI:
@@ -43,4 +44,11 @@ vmBackup:
   enabled: true
   s3:
     bucket: YOUR_VM_BACKUP_BUCKET
+    endpoint: https://objectstore.YOUR_DOMAIN:2222
+
+# Enable with victoria-logs-cluster (see values.yaml comments for OTel/Grafana URL overrides).
+vlBackupCluster:
+  enabled: false
+  s3:
+    bucket: YOUR_VM_CLUSTER_BACKUP_BUCKET
     endpoint: https://objectstore.YOUR_DOMAIN:2222

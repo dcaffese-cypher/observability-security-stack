@@ -7,7 +7,7 @@ Authentication is GitHub OAuth (`auth.github`) against the `YOUR_GITHUB_ORG` Git
 
 **Role model constraint:** only `Admin` and `Viewer`.
 
-**Target outcome (Sean):**
+**Target outcome (platform-admin):**
 - **Admin in your own mission org**
 - **Viewer across all other mission orgs**
 
@@ -43,7 +43,7 @@ Mission orgs (created by bootstrap Job):
 
 ## Mapping matrix (GitHub Team → Grafana Org → Role)
 
-This mapping is implemented in `kubernetes/charts/observability-central/values.yaml` under `grafana.ini.auth.github.org_mapping`.
+This mapping is implemented in `charts/observability-central/values.yaml` under `grafana.ini.auth.github.org_mapping`.
 
 ### Baseline (applies to all authenticated users)
 
@@ -87,8 +87,8 @@ These must exist in the cluster (namespace `observability`). They are **not** st
   - `GF_AUTH_GITHUB_CLIENT_SECRET`
   - `GF_AUTH_GENERIC_OAUTH_CLIENT_ID`
   - `GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET`
-  - Source: Bitwarden → `Observability / Grafana OIDC Client`
-  - Template: `kubernetes/charts/observability-central/manifests/grafana-secret.example.yaml`
+  - Source: your secret manager → `Observability / Grafana OIDC Client`
+  - Template: `charts/observability-central/manifests/grafana-secret.example.yaml`
 
 - `grafana-admin`
   - `admin-user`
@@ -99,12 +99,12 @@ These must exist in the cluster (namespace `observability`). They are **not** st
 
 ## Implementation artifacts
 
-- `kubernetes/charts/observability-central/values.yaml`
+- `charts/observability-central/values.yaml`
   - `envFromSecret: grafana-secret`
   - `initChownData.enabled: false` (PVC chown workaround)
   - `grafana.ini.auth.github` + `org_mapping`
 
-- `kubernetes/charts/observability-central/templates/grafana-org-bootstrap.yaml`
+- `charts/observability-central/templates/grafana-org-bootstrap.yaml`
   - Helm hook Job (idempotent org creation)
 
 ---

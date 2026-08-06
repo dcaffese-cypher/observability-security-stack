@@ -404,7 +404,7 @@
       "repeatDirection": "h",
       "targets": [
         {
-          "expr": "max by (instance) (last_over_time(probe_success{job=~\"blackbox-https|blackbox-otlp\", instance=~\"https://(argocd|vault)\\\\.assembly\\\\.example\\\\.eu|https://(grafana|otel)\\\\.observability\\\\.example\\\\.eu\", instance=~\"$instance\"}[5m]))",
+          "expr": "max by (instance) (last_over_time(probe_success{job=~\"blackbox-https|blackbox-otlp\", instance=~\"https://(argocd|grafana|vault|otel)\\\\.infra\\\\.example\\\\.eu\", instance=~\"$instance\"}[5m]))",
           "format": "table",
           "instant": true,
           "interval": "",
@@ -412,7 +412,7 @@
           "refId": "A"
         },
         {
-          "expr": "max by (instance) (last_over_time(probe_http_ssl{job=~\"blackbox-https|blackbox-otlp\", instance=~\"https://(argocd|vault)\\\\.assembly\\\\.example\\\\.eu|https://(grafana|otel)\\\\.observability\\\\.example\\\\.eu\", instance=~\"$instance\"}[5m]))",
+          "expr": "max by (instance) (last_over_time(probe_http_ssl{job=~\"blackbox-https|blackbox-otlp\", instance=~\"https://(argocd|grafana|vault|otel)\\\\.infra\\\\.example\\\\.eu\", instance=~\"$instance\"}[5m]))",
           "format": "table",
           "instant": true,
           "interval": "",
@@ -420,7 +420,7 @@
           "refId": "B"
         },
         {
-          "expr": "max by (instance) ((probe_ssl_earliest_cert_expiry{job=~\"blackbox-https|blackbox-otlp\", instance=~\"https://(argocd|vault)\\\\.assembly\\\\.example\\\\.eu|https://(grafana|otel)\\\\.observability\\\\.example\\\\.eu\", instance=~\"$instance\"} - time()) / 3600 / 24)",
+          "expr": "max by (instance) ((probe_ssl_earliest_cert_expiry{job=~\"blackbox-https|blackbox-otlp\", instance=~\"https://(argocd|grafana|vault|otel)\\\\.infra\\\\.example\\\\.eu\", instance=~\"$instance\"} - time()) / 3600 / 24)",
           "format": "table",
           "instant": true,
           "interval": "",
@@ -428,7 +428,7 @@
           "refId": "C"
         },
         {
-          "expr": "max by (instance) (last_over_time(probe_http_status_code{job=~\"blackbox-https|blackbox-otlp\", instance=~\"https://(argocd|vault)\\\\.assembly\\\\.example\\\\.eu|https://(grafana|otel)\\\\.observability\\\\.example\\\\.eu\", instance=~\"$instance\"}[5m]))",
+          "expr": "max by (instance) (last_over_time(probe_http_status_code{job=~\"blackbox-https|blackbox-otlp\", instance=~\"https://(argocd|grafana|vault|otel)\\\\.infra\\\\.example\\\\.eu\", instance=~\"$instance\"}[5m]))",
           "format": "table",
           "instant": true,
           "interval": "",
@@ -436,7 +436,7 @@
           "refId": "D"
         },
         {
-          "expr": "max by (instance) (avg_over_time(probe_duration_seconds{job=~\"blackbox-https|blackbox-otlp\", instance=~\"https://(argocd|vault)\\\\.assembly\\\\.example\\\\.eu|https://(grafana|otel)\\\\.observability\\\\.example\\\\.eu\", instance=~\"$instance\"}[1m]))",
+          "expr": "max by (instance) (avg_over_time(probe_duration_seconds{job=~\"blackbox-https|blackbox-otlp\", instance=~\"https://(argocd|grafana|vault|otel)\\\\.infra\\\\.example\\\\.eu\", instance=~\"$instance\"}[1m]))",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -446,7 +446,7 @@
           "refId": "E"
         },
         {
-          "expr": "max by (instance, version) (probe_tls_version_info{job=~\"blackbox-https|blackbox-otlp\", instance=~\"https://(argocd|vault)\\\\.assembly\\\\.example\\\\.eu|https://(grafana|otel)\\\\.observability\\\\.example\\\\.eu\", instance=~\"$instance\"})",
+          "expr": "max by (instance, version) (probe_tls_version_info{job=~\"blackbox-https|blackbox-otlp\", instance=~\"https://(argocd|grafana|vault|otel)\\\\.infra\\\\.example\\\\.eu\", instance=~\"$instance\"})",
           "format": "table",
           "instant": true,
           "interval": "",
@@ -454,7 +454,7 @@
           "refId": "F"
         },
         {
-          "expr": "max by (instance) (avg_over_time(probe_dns_lookup_time_seconds{job=~\"blackbox-https|blackbox-otlp\", instance=~\"https://(argocd|vault)\\\\.assembly\\\\.example\\\\.eu|https://(grafana|otel)\\\\.observability\\\\.example\\\\.eu\", instance=~\"$instance\"}[1m]))",
+          "expr": "max by (instance) (avg_over_time(probe_dns_lookup_time_seconds{job=~\"blackbox-https|blackbox-otlp\", instance=~\"https://(argocd|grafana|vault|otel)\\\\.infra\\\\.example\\\\.eu\", instance=~\"$instance\"}[1m]))",
           "format": "table",
           "instant": true,
           "interval": "",
@@ -627,7 +627,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(probe_http_duration_seconds{job=~\"blackbox-https|blackbox-otlp\", instance=~\"https://(argocd|vault)\\\\.assembly\\\\.example\\\\.eu|https://(grafana|otel)\\\\.observability\\\\.example\\\\.eu\", instance=~\"$instance\"}) by (instance)",
+          "expr": "sum(probe_http_duration_seconds{job=~\"blackbox-https|blackbox-otlp\", instance=~\"https://(argocd|grafana|vault|otel)\\\\.infra\\\\.example\\\\.eu\", instance=~\"$instance\"}) by (instance)",
           "instant": false,
           "interval": "",
           "intervalFactor": 2,
@@ -817,7 +817,7 @@
       "id": 104,
       "type": "row",
       "collapsed": false,
-      "title": "https://vault.assembly.yourdomain.tld",
+      "title": "https://vault.yourdomain.tld",
       "gridPos": {
         "x": 0,
         "y": 34,
@@ -876,7 +876,7 @@
             "type": "victoriametrics-metrics-datasource",
             "uid": "victoria-metrics"
           },
-          "expr": "probe_http_duration_seconds{job=~\"blackbox-https|blackbox-otlp\", instance=\"https://vault.assembly.yourdomain.tld\"}",
+          "expr": "probe_http_duration_seconds{job=~\"blackbox-https|blackbox-otlp\", instance=\"https://vault.yourdomain.tld\"}",
           "legendFormat": "{{{{phase}}}}"
         }
       ]
@@ -885,7 +885,7 @@
       "id": 106,
       "type": "row",
       "collapsed": false,
-      "title": "https://argocd.assembly.yourdomain.tld",
+      "title": "https://argocd.yourdomain.tld",
       "gridPos": {
         "x": 0,
         "y": 42,
@@ -944,7 +944,7 @@
             "type": "victoriametrics-metrics-datasource",
             "uid": "victoria-metrics"
           },
-          "expr": "probe_http_duration_seconds{job=~\"blackbox-https|blackbox-otlp\", instance=\"https://argocd.assembly.yourdomain.tld\"}",
+          "expr": "probe_http_duration_seconds{job=~\"blackbox-https|blackbox-otlp\", instance=\"https://argocd.yourdomain.tld\"}",
           "legendFormat": "{{{{phase}}}}"
         }
       ]
@@ -970,7 +970,7 @@
           "type": "victoriametrics-metrics-datasource",
           "uid": "victoria-metrics"
         },
-        "definition": "label_values(probe_success{job=~\"blackbox-https|blackbox-otlp\", instance=~\"https://(argocd|vault)\\\\.assembly\\\\.example\\\\.eu|https://(grafana|otel)\\\\.observability\\\\.example\\\\.eu\"}, job)",
+        "definition": "label_values(probe_success{job=~\"blackbox-https|blackbox-otlp\", instance=~\"https://(argocd|grafana|vault|otel)\\\\.infra\\\\.example\\\\.eu\"}, job)",
         "error": null,
         "hide": 0,
         "includeAll": true,
@@ -978,7 +978,7 @@
         "multi": false,
         "name": "job",
         "options": [],
-        "query": "label_values(probe_success{job=~\"blackbox-https|blackbox-otlp\", instance=~\"https://(argocd|vault)\\\\.assembly\\\\.example\\\\.eu|https://(grafana|otel)\\\\.observability\\\\.example\\\\.eu\"}, job)",
+        "query": "label_values(probe_success{job=~\"blackbox-https|blackbox-otlp\", instance=~\"https://(argocd|grafana|vault|otel)\\\\.infra\\\\.example\\\\.eu\"}, job)",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
@@ -996,7 +996,7 @@
           "type": "victoriametrics-metrics-datasource",
           "uid": "victoria-metrics"
         },
-        "definition": "label_values(probe_success{job=~\"blackbox-https|blackbox-otlp\", instance=~\"https://(argocd|vault)\\\\.assembly\\\\.example\\\\.eu|https://(grafana|otel)\\\\.observability\\\\.example\\\\.eu\"}, instance)",
+        "definition": "label_values(probe_success{job=~\"blackbox-https|blackbox-otlp\", instance=~\"https://(argocd|grafana|vault|otel)\\\\.infra\\\\.example\\\\.eu\"}, instance)",
         "error": null,
         "hide": 0,
         "includeAll": true,
@@ -1004,7 +1004,7 @@
         "multi": false,
         "name": "instance",
         "options": [],
-        "query": "label_values(probe_success{job=~\"blackbox-https|blackbox-otlp\", instance=~\"https://(argocd|vault)\\\\.assembly\\\\.example\\\\.eu|https://(grafana|otel)\\\\.observability\\\\.example\\\\.eu\"}, instance)",
+        "query": "label_values(probe_success{job=~\"blackbox-https|blackbox-otlp\", instance=~\"https://(argocd|grafana|vault|otel)\\\\.infra\\\\.example\\\\.eu\"}, instance)",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
@@ -1023,7 +1023,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "Blackbox Exporter (HTTP prober) \u2014 Assembly / Observability central",
-  "uid": "blackbox-observability",
+  "title": "Blackbox Exporter (HTTP prober) \u2014 Infra",
+  "uid": "blackbox-infra",
   "version": 9
 }

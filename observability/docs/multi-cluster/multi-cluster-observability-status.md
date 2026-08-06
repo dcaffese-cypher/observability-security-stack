@@ -18,13 +18,15 @@ Multi-cluster logging is **complete** (Phase 1 done). Victoria Logs Cluster inst
 
 ## 2. Central endpoint
 
-Our OTel Collector gateway (alias `otel-deploy`) is exposed at:
+Our OTel Collector gateway (alias `otel-deploy`) on the **observability** cluster is exposed at:
 
 - **URL:** `https://otel.yourdomain.tld`
 - **Metrics (OTLP HTTP):** `https://otel.yourdomain.tld/v1/metrics`
 - **Logs (OTLP HTTP):** `https://otel.yourdomain.tld/v1/logs`
 
 The gateway forwards metrics to Victoria Metrics and logs to Victoria Logs in the `observability` namespace.
+
+**Dual gateways:** A separate legacy gateway **`https://otel.yourdomain.tld`** (infra cluster) remains in service until production cutover is complete. See [otel-endpoint-cloud-team.md](./otel-endpoint-cloud-team.md) for Cloud Mission (Ceph/OpenStack/Proxmox), labels (`team=cloud`), and migration policy.
 
 ---
 
@@ -35,7 +37,7 @@ The gateway forwards metrics to Victoria Metrics and logs to Victoria Logs in th
 Victoria Logs Single is running for dev/staging. For production we need the cluster mode:
 
 1. Add `victoria-logs-cluster` dependency to `observability-central` chart (done in MR 1).
-2. Enable it in the `k8s-observability` overlay with `csi-cinder-sc-retain` storage (MR 3).
+2. Enable it in the `k8s-observability` overlay with `YOUR_STORAGE_CLASS` storage (MR 3).
 3. Update OTel `logs_endpoint` → vlinsert, Grafana datasource → vlselect (MR 3).
 4. Validate logs in Grafana, then disable `victoria-logs-single`.
 

@@ -45,7 +45,7 @@ spec:
   project: default
   source:
     repoURL: https://git.yourdomain.tld/YOUR_ORG/your-repo.git
-    path: kubernetes/charts/observability-edge
+    path: charts/observability-edge
     targetRevision: HEAD
     helm:
       releaseName: otel-collector

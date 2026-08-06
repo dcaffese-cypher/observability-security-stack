@@ -15,7 +15,7 @@ To update dashboards: regenerate the ConfigMap and open an MR in `k8s-infra`:
 ```bash
 kubectl create configmap grafana-dashboards-json \
   -n observability \
-  --from-file=kubernetes/charts/observability-central/config/grafana/provisioning/dashboards/json/ \
+  --from-file=charts/observability-central/config/grafana/provisioning/dashboards/json/ \
   --dry-run=client -o yaml > /path/to/k8s-infra/cluster/templates/observability-dashboards-configmap.yaml
 ```
 
@@ -38,7 +38,7 @@ Deployed as a separate Helm release to keep it decoupled from the main chart.
 ```bash
 helm install otel-logs-collector open-telemetry/opentelemetry-collector \
   -n observability \
-  -f kubernetes/charts/observability-central/manifests/otel-logs-daemonset-values.yaml
+  -f charts/observability-central/manifests/otel-logs-daemonset-values.yaml
 ```
 
 To upgrade:
@@ -46,5 +46,5 @@ To upgrade:
 ```bash
 helm upgrade otel-logs-collector open-telemetry/opentelemetry-collector \
   -n observability \
-  -f kubernetes/charts/observability-central/manifests/otel-logs-daemonset-values.yaml
+  -f charts/observability-central/manifests/otel-logs-daemonset-values.yaml
 ```

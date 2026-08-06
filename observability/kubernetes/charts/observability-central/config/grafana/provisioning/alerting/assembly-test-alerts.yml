@@ -1,0 +1,63 @@
+apiVersion: 1
+# NOT PROVISIONED — webhook verified 2026-07-09. Re-enable via configmap-grafana-alerting.yaml if needed.
+groups:
+  # Test alert for Assembly org (2) — validates Teams webhook via Power Automate.
+  # Uses a math expression (no real datasource needed) so it fires immediately.
+  # Silence or delete this alert after confirming the Teams notification works.
+  - orgId: 2
+    name: assembly-test
+    folder: Test Alerts
+    interval: 1m
+    rules:
+      - uid: assembly-test-watchdog
+        title: "[TEST] Watchdog — Assembly Teams Webhook"
+        condition: C
+        annotations:
+          summary: "Test alert to validate the Assembly Teams webhook."
+          description: "If you see this in Teams the Power Automate webhook is working. Silence this alert after verification."
+        labels:
+          severity: info
+          team: assembly
+        data:
+          # Math expression that always evaluates to 1
+          - refId: A
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: __expr__
+            model:
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: "1"
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+              type: math
+          # Threshold: fire when A > 0 (always true)
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [0]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Alerting
+        for: 0s

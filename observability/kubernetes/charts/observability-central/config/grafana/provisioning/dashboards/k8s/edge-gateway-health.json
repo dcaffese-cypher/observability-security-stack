@@ -26,7 +26,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "victoria-metrics"
       },
       "fieldConfig": {
         "defaults": {
@@ -100,7 +100,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "victoria-metrics"
       },
       "fieldConfig": {
         "defaults": {
@@ -162,7 +162,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "victoria-metrics"
       },
       "fieldConfig": {
         "defaults": {
@@ -215,7 +215,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "victoria-metrics"
       },
       "fieldConfig": {
         "defaults": {
@@ -281,7 +281,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "victoria-metrics"
       },
       "fieldConfig": {
         "defaults": {
@@ -367,7 +367,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "victoria-metrics"
       },
       "fieldConfig": {
         "defaults": {
@@ -408,7 +408,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "victoria-metrics"
       },
       "fieldConfig": {
         "defaults": {

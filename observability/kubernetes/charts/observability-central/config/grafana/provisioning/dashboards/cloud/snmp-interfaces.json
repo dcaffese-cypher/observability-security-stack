@@ -28,7 +28,7 @@
       "title": "Down interfaces (all Cumulus switches)",
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "victoria-metrics"
       },
       "gridPos": {
         "h": 10,
@@ -96,7 +96,7 @@
       "title": "Admin UP but Oper DOWN (possible issues)",
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "victoria-metrics"
       },
       "gridPos": {
         "h": 10,
@@ -164,7 +164,7 @@
       "title": "Down ports per switch",
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "victoria-metrics"
       },
       "gridPos": {
         "h": 6,
@@ -224,7 +224,7 @@
       "title": "SNMP targets UP (cumulus-snmp-interfaces)",
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "victoria-metrics"
       },
       "gridPos": {
         "h": 6,
@@ -284,7 +284,7 @@
       "title": "Admin UP interfaces per switch",
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "victoria-metrics"
       },
       "gridPos": {
         "h": 6,
@@ -340,7 +340,7 @@
       "title": "Interface IN traffic (bps) – selected switch/interface",
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "victoria-metrics"
       },
       "gridPos": {
         "h": 8,
@@ -381,7 +381,7 @@
       "title": "Interface OUT traffic (bps) – selected switch/interface",
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "victoria-metrics"
       },
       "gridPos": {
         "h": 8,
@@ -422,7 +422,7 @@
       "title": "Total IN traffic per switch (bps)",
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "victoria-metrics"
       },
       "gridPos": {
         "h": 8,
@@ -463,7 +463,7 @@
       "title": "Total OUT traffic per switch (bps)",
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "victoria-metrics"
       },
       "gridPos": {
         "h": 8,
@@ -504,7 +504,7 @@
       "title": "Interface input errors (errors/s) – selected switch/interface",
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "victoria-metrics"
       },
       "gridPos": {
         "h": 8,
@@ -545,7 +545,7 @@
       "title": "Top 10 interfaces by IN traffic (bps)",
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "victoria-metrics"
       },
       "gridPos": {
         "h": 8,
@@ -621,7 +621,7 @@
         "type": "query",
         "datasource": {
           "type": "prometheus",
-          "uid": "${DS_PROMETHEUS}"
+          "uid": "victoria-metrics"
         },
         "definition": "label_values(ifOperStatus{job=\"cumulus-snmp-interfaces\"}, instance)",
         "refresh": 1,
@@ -640,7 +640,7 @@
         "type": "query",
         "datasource": {
           "type": "prometheus",
-          "uid": "${DS_PROMETHEUS}"
+          "uid": "victoria-metrics"
         },
         "definition": "label_values(ifOperStatus{job=\"cumulus-snmp-interfaces\",instance=\"$cumulus_switch\"}, ifName)",
         "refresh": 1,

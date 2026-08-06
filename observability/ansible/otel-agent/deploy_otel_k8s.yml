@@ -24,7 +24,7 @@
       vars:
         kubeconfig: "{{ hostvars[cluster_host].kubeconfig | default('') }}"
         helm_chart_path: "{{ hostvars[cluster_host].helm_chart_path | default(helm_chart_path) }}"
-        master_otlp_http: "{{ hostvars[cluster_host].master_otlp_http | default('https://otel.yourdomain.tld') }}"
+        master_otlp_http: "{{ hostvars[cluster_host].master_otlp_http | default('http://YOUR_OTEL_MASTER_IP:4318') }}"
         customer: "{{ hostvars[cluster_host].customer | default('YOUR_ORG') }}"
         environment: "{{ hostvars[cluster_host].environment | default('PRD') }}"
         country: "{{ hostvars[cluster_host].country | default('AT') }}"

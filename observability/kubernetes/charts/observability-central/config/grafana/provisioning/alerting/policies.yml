@@ -1,0 +1,25 @@
+apiVersion: 1
+
+# Note: only orgs with fully-provisioned contact points can be managed here.
+# Org 2 now has a provisioned assembly-teams-example contact point (see contactpoints.yml).
+# This file is still omitted from the grafana-alerting ConfigMap by default to avoid
+# overwriting UI-tuned policy trees; keep in sync manually or re-enable carefully.
+policies:
+  - orgId: 1
+    receiver: assembly-teams-example
+    group_by:
+      - grafana_folder
+      - alertname
+    routes: []
+  - orgId: 2
+    receiver: assembly-teams-example
+    group_by:
+      - grafana_folder
+      - alertname
+    routes: []
+  - orgId: 3
+    receiver: access-teams-example
+    group_by:
+      - grafana_folder
+      - alertname
+    routes: []

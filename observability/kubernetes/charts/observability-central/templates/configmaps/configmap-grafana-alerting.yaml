@@ -8,10 +8,18 @@ metadata:
 data:
   {{- $open := printf "%c%c" 123 123 }}
   {{- $close := printf "%c%c" 125 125 }}
+  # Alert rules rewritten to datasourceUid=victoria-metrics (Prometheus DS removed).
+  # network-switches-simple.yml still omitted — rewrite separately before provisioning.
   rules.yml: |
-{{ printf "%s" (.Files.Get "config/grafana/provisioning/alerting/rules.yml") | replace "{{" $open | replace "}}" $close | indent 4 }}
-  network-switches-simple.yml: |
-{{ printf "%s" (.Files.Get "config/grafana/provisioning/alerting/network-switches-simple.yml") | replace "{{" $open | replace "}}" $close | indent 4 }}
+{{ printf "%s" (.Files.Get "config/grafana/provisioning/alerting/rules.yml") | indent 4 }}
+  access-hda-alerts.yml: |
+{{ printf "%s" (.Files.Get "config/grafana/provisioning/alerting/access-hda-alerts.yml") | indent 4 }}
   contactpoints.yml: |
 {{ printf "%s" (.Files.Get "config/grafana/provisioning/alerting/contactpoints.yml") | indent 4 }}
-  # notification-templates.yml omitted: format causes "invalidFormat" in Grafana 12; add back when template format is updated
+  notification-templates.yml: |
+{{ printf "%s" (.Files.Get "config/grafana/provisioning/alerting/notification-templates.yml") | indent 4 }}
+  # policies.yml omitted: Grafana 12 rejects provisioned policies that reference
+  # contact points created via UI (provenance conflict). Configure via Grafana UI instead.
+  # Org Access (3) default receiver access-teams-example is set live via API; see policies.yml source.
+  # assembly-test-alerts.yml removed after Teams webhook verification (Jul 2026).
+  # Source kept at config/grafana/provisioning/alerting/assembly-test-alerts.yml for reference.

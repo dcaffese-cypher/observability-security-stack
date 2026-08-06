@@ -1,6 +1,6 @@
-# Loki: chunks-cache and memory usage (Sean's feedback)
+# Loki: chunks-cache and memory usage (platform-team feedback)
 
-Sean reported that on inf-1 the pod `observability-central-loki-chunks-cache-0` was using ~61% of the node memory (9830Mi). This document summarizes the options and current state.
+platform-admin reported that on inf-1 the pod `observability-central-loki-chunks-cache-0` was using ~61% of the node memory (9830Mi). This document summarizes the options and current state.
 
 ---
 
@@ -23,7 +23,7 @@ On a node with ~16 GiB, the chunks-cache could reach ~61% of node RAM.
 - **Pros:** Frees memory; no need for a larger node.
 - **Cons:** Repeated queries may be slightly slower.
 
-**In the chart:** In `kubernetes/charts/observability-central/values.yaml` (section `loki`):
+**In the chart:** In `charts/observability-central/values.yaml` (section `loki`):
 
 ```yaml
 chunksCache:
@@ -50,7 +50,7 @@ microk8s kubectl delete statefulset observability-central-loki-chunks-cache obse
 - In `loki.resultsCache`: review `maxItemMemory` and limits.
 - Keeps some cache with bounded memory use.
 
-### Option C – Increase node size (as Sean suggested)
+### Option C – Increase node size (as platform-admin suggested)
 
 - More RAM on the node so the same chunks-cache is a smaller share (e.g. 61% → 30%).
 - No Loki config change; requires infra change.

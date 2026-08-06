@@ -133,7 +133,7 @@ microk8s kubectl get certificate -n envoy-gateway-system
 
 - **Provisioned** (JSON in the chart / ConfigMaps): always applied on deploy; that is how we ship the standard dashboards.
 - **Imported in the UI:** stored in Grafana’s database on the **PVC** (when `grafana.persistence.enabled: true`). They **survive `helm upgrade` and pod restarts** because the claim is kept.
-- **Helm does not copy** UI-imported dashboards into the chart. To version them in Git, export JSON and add under `kubernetes/charts/observability-central/config/grafana/provisioning/dashboards/json/`.
+- **Helm does not copy** UI-imported dashboards into the chart. To version them in Git, export JSON and add under `charts/observability-central/config/grafana/provisioning/dashboards/json/`.
 
 Check PVC: `microk8s kubectl get pvc -n observability | grep -i grafana`
 

@@ -20,6 +20,15 @@ providers:
     updateIntervalSeconds: 30
     options:
       path: /tmp/dashboards/assembly-json
+  - name: K8s
+    orgId: 2
+    folder: Kubernetes
+    type: file
+    disableDeletion: false
+    allowUiUpdates: true
+    updateIntervalSeconds: 30
+    options:
+      path: /tmp/dashboards/k8s-json
   - name: Access
     orgId: 3
     folder: ""

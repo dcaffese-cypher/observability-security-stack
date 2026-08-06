@@ -24,7 +24,7 @@ git clone <repository-url> observability-central
 cd observability-central
 ```
 
-Chart path inside the repo: `kubernetes/charts/observability-central/`.
+Chart path inside the repo: `charts/observability-central/`.
 
 ---
 
@@ -33,7 +33,7 @@ Chart path inside the repo: `kubernetes/charts/observability-central/`.
 From the chart directory:
 
 ```bash
-cd kubernetes/charts/observability-central
+cd charts/observability-central
 microk8s helm3 dependency update
 ```
 
@@ -43,7 +43,7 @@ This fetches subcharts (kube-prometheus-stack, loki, victoria-metrics-single). W
 
 ## 4. Configuration (values)
 
-- **Main file:** `kubernetes/charts/observability-central/values.yaml`
+- **Main file:** `charts/observability-central/values.yaml`
 - Typical adjustments:
   - **Grafana route:** `gatewayAPI.grafana.hostname` and `gatewayAPI.grafana.sectionName`.
   - **OTel route:** `gatewayAPI.otelCollector.hostname` and `gatewayAPI.otelCollector.sectionName`.
@@ -59,7 +59,7 @@ No edits are required for a first deploy if FQDNs are correct.
 On the node with cluster access (e.g. inf-1), with KUBECONFIG or context set:
 
 ```bash
-cd kubernetes/charts/observability-central
+cd charts/observability-central
 microk8s helm3 dependency update
 microk8s helm3 upgrade --install observability-central . -n observability --create-namespace -f values.yaml
 ```
@@ -122,4 +122,4 @@ For OTel agents to send to the master:
 
 - **Day-to-day operations:** `../runbooks/runbook-observability.md`
 - **Architecture and status:** `../../architecture/architecture-and-status-observability.md`
-- **Chart:** `kubernetes/charts/observability-central/README.md`
+- **Chart:** `charts/observability-central/README.md`

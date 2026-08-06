@@ -28,7 +28,7 @@
       "title": "Down interfaces (all Cumulus switches)",
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "victoria-metrics"
       },
       "gridPos": {
         "h": 10,
@@ -96,7 +96,7 @@
       "title": "Down ports per switch",
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "victoria-metrics"
       },
       "gridPos": {
         "h": 6,
@@ -156,7 +156,7 @@
       "title": "Interface IN traffic (bps)",
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "victoria-metrics"
       },
       "gridPos": {
         "h": 8,
@@ -197,7 +197,7 @@
       "title": "Interface OUT traffic (bps)",
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "victoria-metrics"
       },
       "gridPos": {
         "h": 8,
@@ -249,7 +249,7 @@
         "type": "query",
         "datasource": {
           "type": "prometheus",
-          "uid": "${DS_PROMETHEUS}"
+          "uid": "victoria-metrics"
         },
         "definition": "label_values(ifOperStatus, instance)",
         "refresh": 1,
@@ -268,7 +268,7 @@
         "type": "query",
         "datasource": {
           "type": "prometheus",
-          "uid": "${DS_PROMETHEUS}"
+          "uid": "victoria-metrics"
         },
         "definition": "label_values(ifOperStatus{instance=\"$cumulus_switch\"}, ifName)",
         "refresh": 1,

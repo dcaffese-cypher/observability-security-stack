@@ -1,13 +1,52 @@
-# Default contact point that does not require SMTP. Uses a webhook that accepts POST and returns 200
-# so alert notifications do not fail with "connection refused" (no local listener needed).
 apiVersion: 1
+
+# Do NOT deleteContactPoints obsdefault (uid) yet.
+# Network switch rules (nwtempwarn, …) still live only in Grafana DB and reference
+# receiver observability-default. Provisioning delete fails with
+# alerting.notifications.contact-points.used-by-rule and CrashLoops Grafana.
+# After those rules are re-pointed to assembly-teams-example (UI/API or by
+# provisioning network-switches-simple.yml), re-add:
+#   deleteContactPoints:
+#     - orgId: 1
+#       uid: obsdefault
+
 contactPoints:
+  # YOUR_ORG org (1) — Assembly Teams channel via Power Automate
   - orgId: 1
-    name: observability-default
+    name: assembly-teams-example
     receivers:
-      - uid: obsdefault
-        type: webhook
+      - uid: assembly-teams-example
+        type: teams
         settings:
-          # Echo endpoint that returns 200; replace with internal URL or disable if you add a real notification target.
-          url: https://httpbin.org/post
-        name: observability-default
+          url: "https://defaultf2ae2753a73a421e8bb101533753b7.91.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/13/workflows/04a7dadd7c594171bc20be27fb961b7f/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=IPLVLLsgqrbt7cmkTD0W1oPKK016czGCJbAbrJ8I7io"
+          title: '{{ template "teams.title" . }}'
+          message: '{{ template "teams.message" . }}'
+        name: assembly-teams-example
+
+  # Assembly org (2) — same Teams webhook + templates.
+  # Name matches the receiver used by Assembly notification policy / k8s alerts.
+  # UID differs from org 1 (UIDs are global in Grafana).
+  - orgId: 2
+    name: assembly-teams-example
+    receivers:
+      - uid: assembly-teams-example-org2
+        type: teams
+        settings:
+          url: "https://defaultf2ae2753a73a421e8bb101533753b7.91.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/13/workflows/04a7dadd7c594171bc20be27fb961b7f/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=IPLVLLsgqrbt7cmkTD0W1oPKK016czGCJbAbrJ8I7io"
+          title: '{{ template "teams.title" . }}'
+          message: '{{ template "teams.message" . }}'
+        name: assembly-teams-example
+
+  # Access org (3) — Access Teams channel via Power Automate.
+  # Webhook also applied live via Grafana API (uid may differ until next provision sync).
+  # If rotating the webhook, update here AND the live contact point in org Access.
+  - orgId: 3
+    name: access-teams-example
+    receivers:
+      - uid: access-teams-example
+        type: teams
+        settings:
+          url: "https://defaultf2ae2753a73a421e8bb101533753b7.91.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/21/workflows/7285494fd8914881bb7db6c856615c75/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=DqB2fN3rttuqW1rJSW_O44votjK3zzyKWqJk9hFObfs"
+          title: '{{ template "teams.title" . }}'
+          message: '{{ template "teams.message" . }}'
+        name: access-teams-example

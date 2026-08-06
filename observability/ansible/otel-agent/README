@@ -179,7 +179,7 @@ The template automatically includes the following labels as **resource attribute
 
 **Behavior:**
 
-* **`service.name`** is always the server’s hostname (e.g., `"Grafana-example"`)
+* **`service.name`** is always the server’s hostname (e.g., `"Grafana-Diego"`)
 * **All logs and metrics** (both host and container) appear under the same `service.name`
 * **Containers** are automatically identified by Docker metadata (container_name, container_image, etc.)
 * **No need to configure** container-specific variables in the inventory
@@ -191,7 +191,7 @@ AGENT_SERVER_IP_01 ansible_user=root country=AT environment=PRD customer=YOUR_OR
 ```
 
 This will make all logs and metrics from that server and its containers appear under
-`service.name="Grafana-example"` with labels `customer="YOUR_ORG"`, `environment="PRD"`, and `country="AT"` (mapped to CLIENT, ENVIRONMENT, COUNTRY in Loki).
+`service.name="Grafana-Diego"` with labels `customer="YOUR_ORG"`, `environment="PRD"`, and `country="AT"` (mapped to CLIENT, ENVIRONMENT, COUNTRY in Loki).
 
 ## Real-Time History Script
 
@@ -257,7 +257,7 @@ The Prometheus exporter was intentionally removed so that all metrics go to the 
 
 Description
 
-Configured the OpenTelemetry Collector Agent on HOSTNAME-EXAMPLE to include IBM Spectrum Scale (GPFS) logs for centralized ingestion into Loki via the master collector (YOUR_OTEL_MASTER_IP).
+Configured the OpenTelemetry Collector Agent on tsm04-ib to include IBM Spectrum Scale (GPFS) logs for centralized ingestion into Loki via the master collector (YOUR_OTEL_MASTER_IP).
 Changes implemented
 
 Added a new filelog/gpfs receiver to capture logs from /var/adm/ras/mmfs.log.latest.
@@ -337,7 +337,7 @@ Confirmed ingestion by querying in Grafana (Loki data source):
 
 or
 
-    {log.type="gpfs", host="HOSTNAME-EXAMPLE"}
+    {log.type="gpfs", host="tsm04-ib"}
 
     Verified presence of key log patterns:
 
