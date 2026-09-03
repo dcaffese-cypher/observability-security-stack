@@ -20,7 +20,17 @@ spec:
     helm:
       releaseName: observability-central
       version: v3
-      # Optional: override values here; otherwise chart values.yaml is used.
+      # Infra-cluster override: disable Grafana unified alerting so the infra
+      # Grafana does not fire Assembly-team notifications via the shared rules.yml.
+      # The Assembly Grafana (grafana.observability.eodc.eu) is deployed from a
+      # separate ArgoCD Application and is NOT affected by this block.
+      values: |
+        grafana:
+          grafana.ini:
+            unified_alerting:
+              enabled: false
+            alerting:
+              enabled: false
   destination:
     name: in-cluster
     namespace: observability
