@@ -20,17 +20,33 @@ spec:
     helm:
       releaseName: observability-central
       version: v3
-      # Infra-cluster override: disable Grafana unified alerting so the infra
-      # Grafana does not fire Assembly-team notifications via the shared rules.yml.
-      # The Assembly Grafana (grafana.observability.eodc.eu) is deployed from a
-      # separate ArgoCD Application and is NOT affected by this block.
+      # Infra-cluster override: mute Grafana alert *execution* so this Grafana
+      # does not fire Assembly-team notifications via the shared rules.yml.
+      # Grafana 12 cannot disable unified alerting (legacy alerting was removed);
+      # unified_alerting.enabled=false is ignored or crashloops when alerting
+      # files are mounted. execute_alerts=false keeps UA enabled but silent.
+      # Also omit the grafana-alerting mount: network-nvswitch-cloud.yml
+      # references receiver cloud-mission-teams which only exists as API-owned
+      # contact points on Assembly Grafana.
+      # grafana is a kube-prometheus-stack subchart — values must be nested.
+      # The Assembly Grafana is a separate Application and is NOT affected.
       values: |
-        grafana:
-          grafana.ini:
-            unified_alerting:
-              enabled: false
-            alerting:
-              enabled: false
+        kube-prometheus-stack:
+          grafana:
+            grafana.ini:
+              unified_alerting:
+                execute_alerts: false
+            extraConfigmapMounts:
+              - name: dashboards-provider
+                mountPath: /etc/grafana/provisioning/dashboards/observability-dashboards.yml
+                subPath: dashboards.yml
+                configMap: grafana-dashboards-provider
+                readOnly: true
+              - name: plugins-provisioning
+                mountPath: /etc/grafana/provisioning/plugins/plugins.yaml
+                subPath: plugins.yaml
+                configMap: grafana-plugins-provisioning
+                readOnly: true
   destination:
     name: in-cluster
     namespace: observability
